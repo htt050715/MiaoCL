@@ -1,5 +1,22 @@
 # Third-party notices / 第三方声明
 
+## SlimefunHelper parameter translations — CC0-1.0
+
+Source: https://github.com/m1919810/SlimefunHelper
+Revision: fe5ed1545d7b607746d038a8523da08f0b6753aa (1.21.11).
+The Chinese parameter dictionary in `src/renderer/src/assets/slimefun-zh_cn.json`
+uses upstream `src/main/resources/assets/slimefunhelper/lang/en_us.json`
+(which contains Chinese parameter text), with module names from
+`zh_ch_resource_pack.json`. Enum constants in `slimefun-enums.json` were extracted
+from the upstream Java ConfigEnum implementations. Full terms:
+`licenses/SlimefunHelper-CC0.txt`.
+
+The user's `slimefunhelper_zhcn.zip` module-name overrides are retained.
+Missing keys for older installed configurations were supplemented from the local
+SlimefunHelper backport language files. Villager ESP parameter and enum labels
+come from the workspace's slimefun-enhancement implementation. MiaoCL adds
+readable codec field labels and fallbacks; translations affect presentation only.
+
 The root MIT license covers original KAMUCL contributions only. Third-party
 copyright, license and trademark rights remain with their respective holders.
 

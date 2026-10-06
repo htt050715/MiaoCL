@@ -21,7 +21,7 @@ const instance=path.join(games,'versions','config-test');fs.mkdirSync(instance,{
 fs.writeFileSync(path.join(instance,'config-test.json'),JSON.stringify({id:'config-test',_gameDir:true,type:'release',mainClass:'net.minecraft.client.main.Main',libraries:[],assets:'test',arguments:{game:[],jvm:[]}}))
 fs.writeFileSync(path.join(instance,'config-test.jar'),Buffer.alloc(0))
 const slime=path.join(instance,'slimefunhelper','runtime');fs.mkdirSync(slime,{recursive:true})
-fs.writeFileSync(path.join(slime,'combat.yml'),'attack:\n  enabled: false\n  speed: 2\n  prediction: \'nbt:predictargument:{history:5,ticks:2.0d}\'\n')
+fs.copyFileSync('tests/fixtures/slimefun-localization-combat.yml',path.join(slime,'combat.yml'))
 const meteor=path.join(instance,'meteor-client');fs.mkdirSync(meteor)
 const str=s=>{const b=Buffer.from(s),h=Buffer.alloc(2);h.writeUInt16BE(b.length);return Buffer.concat([h,b])}
 const named=(type,key,value)=>Buffer.concat([Buffer.from([type]),str(key),value])
@@ -38,7 +38,7 @@ fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ theme: 'tran
   gameDir: games, activeFolder: games, folders: [{ path: games, isDefault: true }], startupAnimation: false }))
 const report = { version, root, electron: process.versions.electron, compact, mode }
 const wait = ms => new Promise(r => setTimeout(r, ms))
-const deadline = setTimeout(() => { console.error('Packaged UI timed out', root); app.exit(2) }, 45000)
+const deadline = setTimeout(() => { console.error('Packaged UI timed out', root); app.exit(2) }, 60000)
 app.whenReady().then(() => {
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
 })
@@ -110,6 +110,41 @@ app.on('browser-window-created', (_event, window) => {
         for(let i=0;i<70;i++){if(fs.readFileSync(path.join(slime,'combat.yml'),'utf8').includes('speed: 7'))break;await wait(150)}
         assert.match(fs.readFileSync(path.join(slime,'combat.yml'),'utf8'),/speed: 7/)
         for(let i=0;i<70;i++){if(await js("!document.querySelector('.config-save-modal')&&!document.querySelector('.client-configs .config-toolbar .select-menu-btn').disabled"))break;await wait(100)}
+        await js("[...document.querySelectorAll('.feature-row')].find(b=>b.textContent.includes('spear-module')).click()")
+        await wait(150)
+        const spearText=await js("document.querySelector('.settings-panel').innerText")
+        assert(spearText.includes('长矛工具: 自动重启')&&spearText.includes('长矛速度视角重置: 快捷键'),'Concrete spear translations missing')
+        assert(spearText.includes('则自动重新使用'),'Chinese source tooltip missing')
+        assert.equal(await js("document.querySelectorAll('.settings-panel .click-setting').length"),18,'Spear fields missing')
+        assert(await js("[...document.querySelectorAll('.settings-panel .click-setting-copy strong')].every(s=>/[\u4e00-\u9fff]/.test(s.textContent))"),'Spear parameter title still English')
+        await js("document.querySelector('.feature-parameters').scrollIntoView({block:'start'})")
+        await js("[...document.querySelectorAll('.feature-row')].find(b=>b.textContent.includes('att-bot')).click()")
+        await wait(100)
+        assert(await js("document.querySelector('.group-tabs').innerText.includes('暴击')"),'Nested Chinese group missing')
+        await js("document.querySelector('.settings-panel .select-menu-btn').click()")
+        await wait(100)
+        const option=await js("(()=>{const b=[...document.querySelectorAll('.select-menu-option')].find(b=>b.textContent.includes('Grim平地'));if(!b)return false;b.click();return true})()")
+        assert(option,'Translated concrete enum options missing')
+        await wait(100)
+        await js("[...document.querySelectorAll('.feature-row')].find(b=>b.textContent.includes('attack')&&!b.textContent.includes('att-bot')).click()")
+        await wait(100)
+        assert(await js("document.querySelector('.settings-panel').innerText.includes('历史采样长度')"),'Encoded inner field translation missing')
+        const modeButton="[...document.querySelectorAll('.settings-panel .config-leaf')].find(r=>r.innerText.includes('预测模式')).querySelector('.select-menu-btn')"
+        await js(modeButton+'.click()');await wait(100)
+        const encodedChoices=await js("[...document.querySelectorAll('.select-menu-float')].map(e=>e.innerText).join(' | ')")
+        assert(encodedChoices.includes('NV预测器'),'Encoded enum translation missing: '+encodedChoices)
+        await js("[...document.querySelectorAll('.select-menu-option')].find(b=>b.textContent.includes('线性')).click()")
+        await wait(150)
+        await js("[...document.querySelectorAll('.config-editor button')].find(b=>b.textContent.includes('保存 1 个文件')).click()")
+        await wait(100);await js("[...document.querySelectorAll('.config-save-modal button')].find(b=>b.textContent.includes('立即保存')).click()")
+        for(let i=0;i<70;i++){if(await js("!document.querySelector('.config-save-modal')&&!document.querySelector('.client-configs .config-toolbar .select-menu-btn').disabled"))break;await wait(100)}
+        const savedSlime=fs.readFileSync(path.join(slime,'combat.yml'),'utf8')
+        assert(savedSlime.includes('enum:critical_mode:GRIM_GROUND_SIMULATION'),'Translated enum did not preserve raw constant')
+        const savedSlimeObject=packedRequire('yaml').parse(savedSlime)
+        assert(savedSlimeObject.attack['attack-predict-argument'].includes('"mode":"LINEAR"'),'Encoded mode did not persist raw constant')
+        assert(savedSlimeObject.attack['attack-predict-argument'].includes('2d'),'Encoded numeric type changed')
+        assert.equal(savedSlimeObject.attack.speed,7)
+        report.ui.slimefunLocalization={spearSettings:18,sourceTooltip:true,nestedGroup:true,enumValuesPreserved:true,encodedFields:true}
         await js("document.querySelector('.client-configs .config-toolbar .select-menu-btn').click()")
         await wait(100);await js("[...document.querySelectorAll('.select-menu-option')].find(b=>b.textContent.includes('Meteor / Baritone')).click()")
         for(let i=0;i<70;i++){if(await js("!!document.querySelector('.feature-title .switch input')"))break;await wait(150)}

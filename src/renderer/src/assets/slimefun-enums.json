@@ -1,0 +1,276 @@
+{
+  "support_disabler_ac": [
+    "NONE",
+    "GRIM",
+    "MATRIX"
+  ],
+  "encryptalgorithm": [
+    "NONE",
+    "AES_CFB8",
+    "AES_GCM",
+    "AES_ECB"
+  ],
+  "blink_event_action": [
+    "NONE",
+    "FLUSH",
+    "CLOSE"
+  ],
+  "critical_mode": [
+    "PACKET",
+    "FREEZE",
+    "GRIM_GROUND_SIMULATION",
+    "GRIM_WALL",
+    "TEST"
+  ],
+  "elytra_bot_mode": [
+    "FOLLOW",
+    "MACE_ARUA",
+    "SPEAR_ARUA"
+  ],
+  "air_place_mode": [
+    "VANILLA",
+    "GRIM_GHOST_BLOCK_WALL",
+    "GRIM_FAST_GHOST_BLOCK_WALL"
+  ],
+  "kit_replenish_inventory_type": [
+    "NONE",
+    "AUTO",
+    "STRICT",
+    "ORDERED",
+    "GREEDY"
+  ],
+  "kit_replenish_shulker_choice": [
+    "SLOT_MATCH",
+    "ITEM_EXIST",
+    "NUM_MATCH"
+  ],
+  "mine_bot_mode": [
+    "SPHERICAL",
+    "LAYERED_UP",
+    "LAYERED_DOWN",
+    "SQUARE",
+    "TUNNEL",
+    "RANDOM",
+    "AUTO_TOOL"
+  ],
+  "fast_break_bypass_mode": [
+    "NO_BYPASS",
+    "BYPASS_GRIM_LEGIT",
+    "BYPASS_GRIM_BAD_PACKETS"
+  ],
+  "anti_liquid_anti_liquid_mode": [
+    "NONE",
+    "ANTI_WATER",
+    "ANTI_LAVA",
+    "ALL"
+  ],
+  "motionmode": [
+    "VOID",
+    "FIRE_WORKS"
+  ],
+  "armorflymode": [
+    "LAZY",
+    "TICK_LEGACY",
+    "TICK"
+  ],
+  "elytra_extra_fireworks_al_type": [
+    "V1",
+    "V2",
+    "V3",
+    "V4",
+    "V5",
+    "V5_PULLUP_ONLY"
+  ],
+  "elytramode": [
+    "CONTROL",
+    "ROTATION"
+  ],
+  "flight_mode": [
+    "CREATIVE",
+    "MOTION",
+    "JETPACK"
+  ],
+  "no_fall_bypass_mode": [
+    "NO_BYPASS",
+    "LAZY_MODE",
+    "BYPASS_GRIM",
+    "LAZY_BYPASS_GRIM",
+    "LAZY_GRIM_PLUS",
+    "LAZY_GRIM_PLUS_2",
+    "DUP_FULL_FAKE_GROUND",
+    "TEST",
+    "TEST2"
+  ],
+  "no_ground_mode": [
+    "NONE",
+    "GRIM_FAKE_MINE"
+  ],
+  "packet_sneak_bypass_mode": [
+    "BAD_PACKET",
+    "INTERACT",
+    "GRIM_FALLFLYING"
+  ],
+  "use_item_noslow_bypass": [
+    "NO_BYPASS",
+    "BYPASS_GRIM_LAZY",
+    "BYPASS_GRIM_LAZY_V3",
+    "BYPASS_GRIM_50"
+  ],
+  "no_web_slow_bypass": [
+    "NO_BYPASS",
+    "GRIM_SPEED",
+    "GRIM_FAKE_MINE"
+  ],
+  "swim_control_mode": [
+    "NONE",
+    "GRIM"
+  ],
+  "travel_control_type": [
+    "ELYTRASKY",
+    "ELYTRA_PITCH40",
+    "ELYTRA_PITCH40_OPTIMIZED",
+    "ELYTRA_GRIM_FLY40",
+    "ELYTRA_FIREWORK_GLIDE",
+    "MOV_VOID",
+    "MOV_VOID_2",
+    "PEARL",
+    "TEST"
+  ],
+  "velocity_bypass_mode": [
+    "NONE",
+    "GRIM_LEGACY_GROUND",
+    "FREEZE",
+    "GRIM_NEW_GROUND"
+  ],
+  "shulker_storage_display_mode": [
+    "MOST",
+    "ONLY_ONE",
+    "ALL"
+  ],
+  "auto_mine_pathing_mode": [
+    "BATCH",
+    "ACCURATE"
+  ],
+  "path_manager_flight_mode": [
+    "BARITONE",
+    "BARITONE_GOAL",
+    "ELYTRA_FLIGHT"
+  ],
+  "schedular_engine_type": [
+    "NONE",
+    "BARITONE"
+  ],
+  "search_control_look_mode": [
+    "RECT",
+    "CIRCLE",
+    "SPIRAL"
+  ],
+  "walk_control_mode": [
+    "NONE",
+    "PRESS_TOGGLE",
+    "HOLD_USE"
+  ],
+  "xaero_map_scanner_mode": [
+    "LIQUID"
+  ],
+  "connection_proxy_type": [
+    "SOCKS",
+    "HTTP",
+    "HTTPS"
+  ],
+  "event_command_event_type": [
+    "NONE",
+    "WORLD_CHANGE",
+    "JOIN_GAME",
+    "TICK",
+    "SELF_TRIGGER_TOTEM",
+    "OTHER_TRIGGER_TOTEM",
+    "SELF_DEATH",
+    "OTHER_DEATH",
+    "OTHER_ENTER_VISUAL_RANGE",
+    "OTHER_LEAVE_VISUAL_RANGE",
+    "ONCE"
+  ],
+  "module_settings_hotkey_policy": [
+    "ONLY_WHEN_NO_SCREEN",
+    "WHEN_NO_INPUT_SCREEN",
+    "RUN_IN_ALL_SCREEN"
+  ],
+  "direction2d": [
+    "UP",
+    "DOWN",
+    "LEFT",
+    "RIGHT"
+  ],
+  "direction3d": [
+    "DOWN",
+    "UP",
+    "NORTH",
+    "SOUTH",
+    "WEST",
+    "EAST"
+  ],
+  "bypass_mode": [
+    "NO_BYPASS",
+    "BYPASS_GRIM"
+  ],
+  "ghost_hand_mode": [
+    "INV_SWAP",
+    "HOT_BAR_ONLY",
+    "INV_CLICK"
+  ],
+  "legal_interact_mode": [
+    "NONE",
+    "MOVEMENT_POST",
+    "DELAY_MOVEMENT",
+    "USEITEM_PACKET",
+    "LEGACY_SLIENT_ROT"
+  ],
+  "legal_targeting_mode": [
+    "NONE",
+    "DELAY_MOVEMENT",
+    "LEGACY_SLIENT_ROT"
+  ],
+  "mine_targeting_mode": [
+    "NO_BYPASS",
+    "SWING_HAND",
+    "SWING_HAND_AND_ROT",
+    "SWING_HAND_AND_TARGET"
+  ],
+  "predict_mode": [
+    "NO_PREDICT",
+    "LINEAR",
+    "QUADRATIC",
+    "PREDICTOR_NV",
+    "PREDICTOR_ROTATION",
+    "PREDICTOR_ACCELERATE",
+    "PREDICTOR_FLY_ACC"
+  ],
+  "setback_trigger_type": [
+    "SIMULATION",
+    "CRASH_PACKETS"
+  ],
+  "equipment_hud_damage_display_type": [
+    "NONE",
+    "DAMAGE_LEFT",
+    "DAMAGE",
+    "PERCENTAGE"
+  ],
+  "notify_type": [
+    "PS_WINDOW",
+    "TRAY"
+  ],
+  "render_mode": [
+    "RENDER_2D",
+    "RENDER_3D"
+  ],
+  "villager_trade_display_mode": [
+    "FIRST",
+    "ALL"
+  ],
+  "villager_text_position": [
+    "NAME_TAG",
+    "CENTER",
+    "FEET"
+  ]
+}

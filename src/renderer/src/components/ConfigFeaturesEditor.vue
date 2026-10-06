@@ -4,9 +4,11 @@ import type { ConfigNode } from '@shared/clientConfigs'
 import { configChild, configEnabled, configFeatures } from '@shared/configFeatures'
 import ConfigNodeEditor from './ConfigNodeEditor.vue'
 import ClickUiSetting from './ClickUiSetting.vue'
-import { slimefunLabel } from '../utils/slimefunLabels'
+import { slimefunLabel, slimefunDescription, slimefunOptions, slimefunNodeSearchText } from '../utils/slimefunLabels'
 
 type RuntimeModule = { name: string; title: string; category: string; addon: string }
+type SettingGroup = { key: string; label: string; node: ConfigNode; path: string[]; settings?: { key: string; node: ConfigNode }[] }
+type Setting = { key: string; node: ConfigNode; label: string; path?: string[]; description?: string; options?: string[]; min?: number; max?: number }
 const props = defineProps<{ root: ConfigNode; meteor: boolean; search: string; disabled?: boolean; modules?: RuntimeModule[] }>()
 const emit = defineEmits<{ change: [] }>()
 const enabledOnly = ref(false), selected = ref(''), selectedGroup = ref(''), page = ref(0)
@@ -15,27 +17,32 @@ const visible = computed(() => features.value.filter(feature => {
   if (enabledOnly.value && feature.enabled <= 0) return false
   if (!props.search) return true
   const title = props.meteor ? props.modules?.find(module => module.name === feature.name)?.title : slimefunLabel([feature.name])
-  return `${feature.name} ${title ?? ''} ${JSON.stringify(feature.node)}`.toLowerCase().includes(props.search.toLowerCase())
+  const parameters = props.meteor ? JSON.stringify(feature.node) : slimefunNodeSearchText(feature.node, [feature.name])
+  return `${feature.name} ${title ?? ''} ${parameters}`.toLowerCase().includes(props.search.toLowerCase())
 }))
 const current = computed(() => features.value.find(feature => feature.name === selected.value))
 const title = (name: string) => props.meteor ? props.modules?.find(module => module.name === name)?.title || name : slimefunLabel([name], name)
-const groups = computed(() => {
+const groups = computed<SettingGroup[]>(() => {
   const module = current.value?.node
-  if (!module) return [] as { key: string; label: string; node: ConfigNode; settings?: { key: string; node: ConfigNode }[] }[]
-  if (props.meteor) return (configChild(configChild(module, 'settings'), 'groups')?.children ?? []).map(group => ({ key: group.key, label: String(configChild(group.node, 'name')?.value ?? group.key), node: group.node, settings: configChild(group.node, 'settings')?.children ?? [] }))
+  if (!module) return []
+  if (props.meteor) return (configChild(configChild(module, 'settings'), 'groups')?.children ?? []).map(group => ({ key: group.key, label: String(configChild(group.node, 'name')?.value ?? group.key), node: group.node, path: [], settings: configChild(group.node, 'settings')?.children ?? [] }))
   const scalar = (module.children ?? []).filter(child => !child.node.children)
   const nested = (module.children ?? []).filter(child => child.node.children)
-  return [...(scalar.length ? [{ key: 'general', label: '常规', node: { type: 'object', children: scalar } as ConfigNode }] : []), ...nested.map(group => ({ key: group.key, label: slimefunLabel([current.value?.name ?? '', group.key], group.key), node: group.node }))]
+  const path = [current.value!.name]
+  return [...(scalar.length ? [{ key: '__general', label: '常规', path, node: { type: 'object', children: scalar } as ConfigNode }] : []), ...nested.map(group => ({ key: group.key, label: slimefunLabel([...path, group.key], group.key), path: [...path, group.key], node: group.node }))]
 })
 const activeGroup = computed(() => groups.value.find(group => group.key === selectedGroup.value) ?? groups.value[0])
-const settings = computed(() => {
+const settings = computed<Setting[]>(() => {
   const group = activeGroup.value
-  if (!group) return [] as { key: string; node: ConfigNode; label: string; description?: string; options?: string[]; min?: number; max?: number }[]
+  if (!group) return []
   if (props.meteor) return (group.settings ?? []).map(setting => {
     const value = configChild(setting.node, 'value') ?? setting.node
     return { key: setting.key, node: value, label: String(value.title ?? configChild(setting.node, 'name')?.value ?? setting.key), description: value.description, options: value.options, min: value.min, max: value.max }
   })
-  return (group.node.children ?? []).map(child => ({ key: child.key, node: child.node, label: slimefunLabel([current.value?.name ?? '', activeGroup.value?.key ?? '', child.key], child.key) }))
+  return (group.node.children ?? []).map(child => {
+    const path = [...group.path, child.key]
+    return { key: child.key, node: child.node, path, label: slimefunLabel(path, child.key), description: slimefunDescription(path), options: child.node.options ?? slimefunOptions(child.node.value) }
+  })
 })
 watch(() => [props.root, props.search, enabledOnly.value], () => { page.value = 0; if (!visible.value.some(feature => feature.name === selected.value)) selected.value = visible.value[0]?.name ?? '' }, { immediate: true })
 watch(() => [selected.value, groups.value.map(group => group.key).join('|')], () => { if (!groups.value.some(group => group.key === selectedGroup.value)) selectedGroup.value = groups.value[0]?.key ?? '' }, { immediate: true })
@@ -53,7 +60,7 @@ function toggle(node: ConfigNode, event: Event) { node.value = node.type === 'by
       <section v-if="current" class="feature-parameters">
         <header class="feature-title"><div><h3>{{ title(current.name) }}</h3><small class="muted">{{ props.meteor ? `${modules?.find(module => module.name === current!.name)?.category ?? ''} ${modules?.find(module => module.name === current!.name)?.addon ?? ''}` : current.name }}</small></div><label v-if="current.active" class="switch"><input type="checkbox" :checked="configEnabled(current.active)" :disabled="disabled" @change="toggle(current.active, $event)" /><span class="switch-ui" /></label></header>
         <div v-if="groups.length" class="group-tabs" role="tablist"><button v-for="group in groups" :key="group.key" class="group-tab" :class="{ active: activeGroup?.key === group.key }" @click="selectedGroup = group.key">{{ group.label }}</button></div>
-        <div v-if="activeGroup" class="settings-panel"><div class="settings-heading"><strong>{{ activeGroup.label }}</strong><span class="muted">{{ settings.length }} 项</span></div><ClickUiSetting v-for="setting in settings" :key="setting.key" :node="setting.node" :label="setting.label" :description="setting.description" :options="setting.options" :min="setting.min" :max="setting.max" :disabled="disabled" @change="emit('change')" /><p v-if="!settings.length" class="muted">这个参数组当前没有可视化字段。</p></div>
+        <div v-if="activeGroup" class="settings-panel"><div class="settings-heading"><strong>{{ activeGroup.label }}</strong><span class="muted">{{ settings.length }} 项</span></div><ClickUiSetting v-for="setting in settings" :key="setting.key" :node="setting.node" :label="setting.label" :slimefun="!meteor" :label-path="setting.path" :description="setting.description" :options="setting.options" :min="setting.min" :max="setting.max" :disabled="disabled" @change="emit('change')" /><p v-if="!settings.length" class="muted">这个参数组当前没有可视化字段。</p></div>
         <details class="advanced-config"><summary>查看完整配置结构</summary><ConfigNodeEditor :node="current.node" :label="current.name" :slimefun="!meteor" :label-path="meteor ? undefined : [current.name]" :disabled="disabled" :expanded-depth="2" @change="emit('change')" /></details>
       </section>
     </div>

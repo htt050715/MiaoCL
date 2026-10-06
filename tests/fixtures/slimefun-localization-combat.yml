@@ -1,0 +1,27 @@
+attack:
+  enabled: false
+  speed: 2
+  attack-predict-argument: 'nbt:predictargument:{history:5,mode:"PREDICTOR_NV",ticks:2.0d}'
+spear-module:
+  spear-auto-restart: false
+  render-kinetic-players: true
+  replace-via-spear-model: false
+  fix-old-version-spear: false
+  fix-old-version-spear-piercing: false
+  fix-old-version-spear-sound: false
+  render-kinetic-players-color: 'nbt:wrapcolor:"red"'
+  reset-spear-speed-rot-enable: false
+  reset-spear-speed-rot-hotkey: 'hotkey:key.keyboard.r'
+  reset-spear-speed-auto: false
+  reset-spear-speed-only-combat: false
+  reset-spear-auto-focus-target: false
+  spear-attack-enable: false
+  spear-attack-hotkey: 'hotkey:key.keyboard.g'
+  spear-motion-simulation: 3
+  spear-max-tp: 5
+  render-target: false
+  spear-server-tick-delay: 2
+att-bot:
+  criticals:
+    mode: 'enum:critical_mode:PACKET'
+    enable: false

@@ -1,4 +1,6 @@
 import translations from '../assets/slimefun-zh_cn.json'
+import enumValues from '../assets/slimefun-enums.json'
+import type { ConfigNode } from '@shared/clientConfigs'
 
 const entries = translations as Record<string, string>
 const modulePrefix = 'widget.click-gui.module-name.'
@@ -25,18 +27,63 @@ const groupAliases: Record<string, string> = {
 }
 
 export function slimefunLabel(path: readonly string[], fallback = path.at(-1) ?? ''): string {
-  const toggle = entries[`module-toggle.${path.join('.')}`]
-  if (toggle) return toggle
   const exact = entries[path.join('.')]
   if (exact) return exact
+  const index = entries[`config.index.${path.join('.')}`]
+  if (index) return index
+  const toggle = entries[`module-toggle.${path.join('.')}`]
+  if (toggle) return toggle
   if (path.length === 1) {
     const name = groupAliases[path[0]] ?? path[0]
     return moduleNames.get(normalized(name)) ?? fallback
   }
-  const leaf = path.at(-1) ?? ''
-  return moduleNames.get(normalized(leaf)) ?? fallback
+  return fallback
+}
+
+export function slimefunDescription(path: readonly string[]): string | undefined {
+  return entries[`${path.join('.')}.tooltips`]
+}
+
+export function slimefunChoice(value: string, enumType?: string): string {
+  const encoded = /^enum:([^:]+):(.+)$/.exec(value)
+  const type = encoded?.[1] ?? enumType
+  return type ? entries[`configenum.${type.replaceAll('_', '-')}.${(encoded?.[2] ?? value).toLowerCase()}`] ?? value : value
+}
+
+// Values come from the upstream Java enums, never from a translated label.
+export function slimefunOptions(value: unknown, enumType?: string): string[] | undefined {
+  const encoded = typeof value === 'string' ? /^enum:([^:]+):(.+)$/.exec(value) : null
+  const type = encoded?.[1] ?? enumType
+  const values = type ? (enumValues as Record<string, string[]>)[type] : undefined
+  if (!values) return
+  const choices = values.map(v => encoded ? `enum:${type}:${v}` : v)
+  return typeof value === 'string' && !choices.includes(value) ? [value, ...choices] : choices
+}
+
+// Codec field names verified against NBTTypes and PositionPredict.PredictArgument.
+const codecFields: Record<string, Record<string, string>> = {
+  predictargument: { ticks: '预测前瞻量', history: '历史采样长度', mode: '预测模式' },
+  tracingoption: { box: '渲染边框', line: '渲染追踪线' },
+  optionalprimitive: { present: '启用此参数', value: '参数值' },
+  stringformat: { arguments: '可用变量', color_str: '启用颜色代码', format: '文本格式' },
+  entryset: { data: '条目列表', key_type: '注册表类型' },
+  pos3: { x: 'X 坐标', y: 'Y 坐标', z: 'Z 坐标' }
+}
+const widgetPrefixes: Record<string, string> = { predictargument: 'predict-argument', tracingoption: 'tracing-option', stringformat: 'string-format' }
+export function slimefunCodecLabel(codec: string, path: readonly string[], fallback: string): string {
+  return path.length === 1 ? codecFields[codec]?.[path[0]] ?? entries[`widget.nbt-parsable.${widgetPrefixes[codec] ?? codec}.${path[0]}`] ?? fallback : fallback
+}
+export function slimefunCodecDescription(codec: string, path: readonly string[]): string | undefined {
+  return path.length === 1 ? entries[`widget.nbt-parsable.${widgetPrefixes[codec] ?? codec}.${path[0]}.tooltips`] : undefined
+}
+export function slimefunCodecEnum(codec: string | undefined, path: readonly string[]): string | undefined {
+  return codec === 'predictargument' && path.length === 1 && path[0] === 'mode' ? 'predict_mode' : undefined
 }
 
 export function slimefunSearchText(path: readonly string[]): string {
-  return `${path.join('.')} ${slimefunLabel(path)}`
+  return `${path.join('.')} ${slimefunLabel(path)} ${slimefunDescription(path) ?? ''}`
+}
+
+export function slimefunNodeSearchText(node: ConfigNode, path: readonly string[]): string {
+  return [slimefunSearchText(path), String(node.value ?? ''), ...(node.children ?? []).map(c => slimefunNodeSearchText(c.node, [...path, c.key]))].join(' ')
 }
