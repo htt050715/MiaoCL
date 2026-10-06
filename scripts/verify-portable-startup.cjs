@@ -10,6 +10,7 @@ for(const phase of ['cold','warm']){
  const result=spawnSync(exe,['-e',`require('fs').writeFileSync(process.env.KAMUCL_START_PROOF,JSON.stringify({at:Date.now(),exe:process.execPath}));setTimeout(()=>{},1200)`],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1',TEMP:root,TMP:root,KAMUCL_BOOT_PROBE:probe,KAMUCL_START_PROOF:marker},windowsHide:true,encoding:'utf8',timeout:90000})
  assert.ifError(result.error);assert.equal(result.status,0,result.stderr)
  const inner=JSON.parse(fs.readFileSync(marker,'utf8'));assert(fs.existsSync(probe),'native first-paint proof missing')
+ assert.equal(path.dirname(path.dirname(inner.exe)),path.join(root,'MiaoCL-runtime'),'portable runtime directory');assert(!fs.existsSync(path.join(root,'KAMUCL-runtime')),'must not create old runtime directory')
  const cache=path.join(path.dirname(inner.exe),'cache.ready');assert(fs.existsSync(cache))
  results.push({phase,firstPaintMs:Number(fs.readFileSync(probe,'utf8'))-start,electronEntryMs:inner.at-start,cache,cacheMtime:fs.statSync(cache).mtimeMs})
 }

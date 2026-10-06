@@ -1,7 +1,7 @@
 # MiaoCL 1.1.17 配置管理试用
 
 Windows x64：运行 MiaoCL-1.1.17.exe，或先解压 Windows ZIP 后运行其中的 EXE。
-便携运行组件会展开到 EXE 旁的 KAMUCL-runtime 目录；该兼容目录名沿用原启动器。
+便携运行组件会展开到 EXE 旁的 MiaoCL-runtime 目录；按版本与构建哈希隔离缓存。旧 KAMUCL-runtime 缓存无需迁移，游戏与启动器设置不存放在此缓存中。
 
 ## 参数管理入口
 

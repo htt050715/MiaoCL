@@ -67,10 +67,10 @@ test('bridge protocol: loopback only, token required for writes, server-scope pa
 
 test('portable stub unpacks next to the exe instead of random TEMP dir', () => {
   const hook = read('scripts/portable-build-hook.cjs')
-  assert.match(hook, /\$EXEDIR\\\\KAMUCL-runtime/)
+  assert.match(hook, /\$EXEDIR\\\\MiaoCL-runtime/)
   assert.match(hook, /\$TEMP\\\\\$\{UNPACK_DIR_NAME\}/)
   const verify = read('scripts/verify-portable-path.cjs')
-  assert.match(verify, /KAMUCL-runtime/)
+  assert.match(verify, /MiaoCL-runtime/)
 })
 
 test('keys sync integrates into launch only when the toggle is on', () => {
