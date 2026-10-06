@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import type { ConfigNode } from '@shared/clientConfigs'
 import SelectMenu from './SelectMenu.vue'
 import {parseSlimeValue,writeSlimeValue} from '@shared/snbtConfig'
-const props = defineProps<{node:ConfigNode;label:string;search?:string;depth?:number;disabled?:boolean;expandedDepth?:number}>()
+import {slimefunLabel} from '../utils/slimefunLabels'
+const props = defineProps<{node:ConfigNode;label:string;search?:string;depth?:number;disabled?:boolean;expandedDepth?:number;slimefun?:boolean;labelPath?:string[]}>()
 const emit = defineEmits<{(e:'change'):void}>()
 const encoded=ref<ReturnType<typeof parseSlimeValue>>(),rawEncoded=ref(false)
 watch(()=>props.node.value,value=>{encoded.value=props.node.type==='string'&&typeof value==='string'?parseSlimeValue(value):undefined},{immediate:true})
@@ -13,9 +14,9 @@ watch(()=>props.search,()=>{page.value=0})
 const byteInteger=ref(false)
 const container=computed(() => !!props.node.children)
 const list=computed(() => ['list','array','byte-array','int-array','long-array'].includes(props.node.type))
-function matches(label:string,node:ConfigNode):boolean {
+function matches(label:string,node:ConfigNode,path:string[]=props.labelPath??[]):boolean {
   const search=props.search?.trim().toLowerCase()
-  return !search || label.toLowerCase().includes(search) || String(node.value??'').toLowerCase().includes(search) || !!node.children?.some(c => matches(c.key,c.node))
+  return !search || label.toLowerCase().includes(search) || props.slimefun && slimefunLabel([...path,label]).toLowerCase().includes(search) || String(node.value??'').toLowerCase().includes(search) || !!node.children?.some(c => matches(c.key,c.node,[...path,label]))
 }
 const children=computed(() => (props.node.children??[]).filter(c => matches(c.key,c.node)))
 const displayed=computed(() => children.value.slice(page.value*60,(page.value+1)*60))
@@ -23,7 +24,8 @@ const numeric=computed(() => ['byte','short','int','float','double','number'].in
 const boolean=computed(() => props.node.type==='boolean' || props.node.type==='byte' && !byteInteger.value && [0,1].includes(Number(props.node.value)))
 const label=computed(() => {
   const name=props.node.children?.find(c => c.key==='name')?.node.value
-  return name ? `${props.label} · ${name}` : props.label
+  const display=props.slimefun ? slimefunLabel(props.labelPath??[props.label],props.label) : props.label
+  return name ? `${display} · ${name}` : display
 })
 function value(event:Event) {
   const target=event.target as HTMLInputElement
@@ -53,7 +55,7 @@ function remove(key:string) { props.node.children=props.node.children?.filter(c 
       <button class="config-group" :aria-expanded="opened || !!search" @click="opened=!opened"><span>{{ opened || search ? '▾' : '▸' }} {{ label }}</span><small class="muted">{{ node.type }} · {{ node.children?.length }}</small></button>
       <div v-if="opened || search" class="config-children">
         <div v-for="child in displayed" :key="child.key" class="config-entry">
-          <ConfigNodeEditor :node="child.node" :label="child.key" :depth="(depth??0)+1" :expanded-depth="expandedDepth" :search="search" :disabled="disabled" @change="emit('change')"/>
+          <ConfigNodeEditor :node="child.node" :label="child.key" :depth="(depth??0)+1" :expanded-depth="expandedDepth" :search="search" :disabled="disabled" :slimefun="slimefun" :label-path="[...(labelPath??[]),child.key]" @change="emit('change')"/>
           <button v-if="list" class="btn btn-ghost btn-sm" :disabled="disabled" :aria-label="'移除 '+child.key" @click="remove(child.key)">移除</button>
         </div>
         <div v-if="children.length>60" class="config-pagination"><button class="btn btn-ghost btn-sm" :disabled="page===0" @click="page--">上一页</button><span>{{ page+1 }} / {{ Math.ceil(children.length/60) }}</span><button class="btn btn-ghost btn-sm" :disabled="(page+1)*60>=children.length" @click="page++">下一页</button></div>
@@ -65,7 +67,7 @@ function remove(key:string) { props.node.children=props.node.children?.filter(c 
     </template>
     <div v-else-if="encoded&&!rawEncoded" class="config-encoded"><ConfigNodeEditor :node="encoded.root" :label="node.title||label" :depth="0" :expanded-depth="2" :disabled="disabled" @change="updateEncoded"/><button class="btn btn-ghost btn-sm" @click="rawEncoded=true">查看原始值</button></div>
     <div v-else class="config-leaf">
-      <label><span>{{ node.title || label }}</span><small class="muted">{{ node.title ? label+' · ' : '' }}{{ node.type }}</small><small v-if="node.description" class="muted">{{ node.description }}</small></label>
+      <label><span>{{ node.title || label }}</span><small class="muted">{{ slimefun && label!==props.label ? props.label+' · ' : node.title ? label+' · ' : '' }}{{ node.type }}</small><small v-if="node.description" class="muted">{{ node.description }}</small></label>
       <span v-if="node.type==='binary'" class="muted">二进制文件随整包导入导出</span>
       <span v-else-if="node.type==='null'" class="muted">null</span>
       <SelectMenu v-else-if="node.options?.length" :model-value="String(node.value??'')" :options="node.options.map(o=>({value:o,label:o}))" :disabled="disabled" @change="v=>{node.value=v;emit('change')}"/>

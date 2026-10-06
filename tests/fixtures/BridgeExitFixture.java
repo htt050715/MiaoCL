@@ -10,7 +10,7 @@ public final class BridgeExitFixture {
     public static void main(String[] args) throws Exception {
         Path dir = Path.of(args[0]);
         ParamRegistry.init(dir);
-        DemoModule.register();
+        ParamRegistry.register(Param.text("bridge-exit-fixture", "message", "Fixture message", "initial").build(), value -> {});
         BridgeServer.start(dir, "fixture");
         System.out.println("FIXTURE_READY");
         new BufferedReader(new InputStreamReader(System.in)).readLine();

@@ -7,6 +7,7 @@ import SelectMenu from './SelectMenu.vue'
 import ConfigNodeEditor from './ConfigNodeEditor.vue'
 import ConfigFeaturesEditor from './ConfigFeaturesEditor.vue'
 import {configChild,configEnabled} from '@shared/configFeatures'
+import {slimefunLabel} from '../utils/slimefunLabels'
 import ConfirmModal from './ConfirmModal.vue'
 const catalog=ref<ConfigCatalog>(), scope=ref<ConfigScope>('slimefunhelper'), file=ref(''), search=ref(''), fileSearch=ref(''), profile=ref(''), profileName=ref(''),error=ref(''),busy=ref(false)
 const documents=ref<Record<string,ConfigDocument>>({}),originals=ref<Record<string,string>>({})
@@ -92,13 +93,13 @@ onUnmounted(()=>{disposed=true;++epoch;clearInterval(timer)})
       <div class="config-toolbar"><input v-model="fileSearch" class="input" placeholder="筛选配置文件…" :disabled="busy"/><SelectMenu :model-value="file" :options="options" placeholder="选择配置文件" :disabled="busy" @change="openFile"/></div>
       <div class="config-quick"><button v-for="f in options.filter(o=>o.value.startsWith('slimefunhelper/runtime/')||/^meteor-client\/(modules|friends|hud|config)\.nbt$/.test(o.value))" :key="f.value" class="btn btn-ghost btn-sm" :class="{chosen:file===f.value}" :disabled="busy" @click="openFile(f.value)">{{f.value.split('/').pop()?.replace(/\.(yml|nbt)$/,'')}}</button></div>
       <p v-if="loading" class="muted">正在读取完整配置与当前模块参数…</p>
-      <details v-if="scope!=='meteor'&&catalog?.runtime.slimeModules?.length" class="config-modules"><summary>SlimefunHelper 当前已启用 {{catalog.runtime.slimeModules.filter(slimeActive).length}} / {{catalog.runtime.slimeModules.length}} 项功能</summary><div class="config-toolbar"><label><input v-model="slimeEnabledOnly" type="checkbox"/> 只看已启用</label></div><div class="slime-toggles"><div v-for="m in slimeModules" :key="m.file+m.path.join('.')" class="slime-toggle"><button class="btn btn-ghost btn-sm" :disabled="busy" @click="openFile(m.file)">{{m.title}}</button><label class="switch"><input type="checkbox" :aria-label="'启用 '+m.title" :checked="slimeActive(m)" :disabled="busy||loading" @change="toggleSlime(m,$event)"/><span class="switch-ui"/></label></div></div></details>
+      <details v-if="scope!=='meteor'&&catalog?.runtime.slimeModules?.length" class="config-modules"><summary>SlimefunHelper 当前已启用 {{catalog.runtime.slimeModules.filter(slimeActive).length}} / {{catalog.runtime.slimeModules.length}} 项功能</summary><div class="config-toolbar"><label><input v-model="slimeEnabledOnly" type="checkbox"/> 只看已启用</label></div><div class="slime-toggles"><div v-for="m in slimeModules" :key="m.file+m.path.join('.')" class="slime-toggle"><button class="btn btn-ghost btn-sm" :disabled="busy" @click="openFile(m.file)">{{slimefunLabel(m.path,m.title)}}</button><label class="switch"><input type="checkbox" :aria-label="'启用 '+slimefunLabel(m.path,m.title)" :checked="slimeActive(m)" :disabled="busy||loading" @change="toggleSlime(m,$event)"/><span class="switch-ui"/></label></div></div></details>
       <div v-if="current" class="config-editor">
         <button v-if="/^slimefunhelper\/config\/[^/]+\.nbt$/i.test(file)" class="btn btn-gold" :disabled="busy||dirty.length>0" @click="switchHot('snapshot')">应用此 SlimefunHelper 参数快照并热重载</button>
         <div class="config-toolbar"><input v-model="search" class="input" placeholder="搜索参数、模块、好友名称…"/><span class="muted">{{ current.format.toUpperCase() }}</span><button class="btn btn-ghost btn-sm" :disabled="busy||!dirty.length" @click="discard=true">取消全部修改</button><button class="btn btn-gold" :disabled="busy||!dirty.length" @click="operation='save'">保存 {{ dirty.length }} 个文件</button></div>
         <p v-if="current.warning" class="config-error" role="alert">{{current.warning}}</p>
         <ConfigFeaturesEditor v-if="featureFile&&!advanced" :root="current.root" :meteor="file==='meteor-client/modules.nbt'" :search="search" :modules="catalog?.runtime.modules" :disabled="busy" @change="error=''"/>
-        <ConfigNodeEditor v-else :key="file" :node="current.root" :label="current.file" :search="search" :disabled="busy" @change="error=''"/>
+        <ConfigNodeEditor v-else :key="file" :node="current.root" :label="current.file" :slimefun="scope==='slimefunhelper'||file.startsWith('slimefunhelper/')" :search="search" :disabled="busy" @change="error=''"/>
         <button v-if="featureFile" class="btn btn-ghost btn-sm" @click="advanced=!advanced">{{advanced?'返回功能与参数':'查看完整配置结构'}}</button>
       </div>
       <p v-if="scope!=='slimefunhelper'&&catalog?.runtime.modules.length" class="muted">游戏已注册 {{catalog.runtime.modules.length}} 个 Meteor 模块，已启用 {{catalog.runtime.modules.filter(m=>m.active).length}} 个（含附加插件）。</p>

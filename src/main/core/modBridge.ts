@@ -41,7 +41,7 @@ export async function installBridge(versionId: string): Promise<{ ok: boolean; a
     if (fs.lstatSync(modsDir).isSymbolicLink()) throw Error('mods 目录不能是链接')
     const existing = fs.readdirSync(modsDir).filter(name => name.endsWith('.jar') && parseModFile(path.join(modsDir,name)).id === 'kamucl-bridge')
     if (existing.length > 1) throw Error('检测到多个桥接 MOD，请先整理重复安装')
-    const next = fs.readFileSync(src), destination = path.join(modsDir,existing[0] ?? 'miaocl-config-bridge-1.1.1.jar')
+    const next = fs.readFileSync(src), destination = path.join(modsDir,existing[0] ?? 'miaocl-config-bridge-1.1.2.jar')
     if (fs.existsSync(destination)) {
       if (fs.lstatSync(destination).isSymbolicLink()) throw Error('桥接 MOD 不能是链接')
       const old = fs.readFileSync(destination)
@@ -150,7 +150,8 @@ export async function bridgeManifest(versionId: string): Promise<{ protocol: num
   if (!discovery) throw new Error('未发现桥接服务')
   const manifest = (await call(discovery, 'manifest')) as { protocol?: number; params?: BridgeParam[] }
   if (manifest?.protocol !== 1 || !Array.isArray(manifest.params)) throw new Error('桥接服务协议不兼容')
-  return { protocol: 1, params: manifest.params }
+  // Older running bridge versions may still expose the retired demo until the game restarts.
+  return { protocol: 1, params: manifest.params.filter(param => param.modId !== 'miaocl-demo' && param.modId !== 'kamucl-demo') }
 }
 
 /** 修改参数：以 MOD 返回的实际结果为准（value 回读自 MOD 端校验后的值）。 */
