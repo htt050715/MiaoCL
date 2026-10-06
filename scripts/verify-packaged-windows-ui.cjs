@@ -67,6 +67,20 @@ app.on('browser-window-created', (_event, window) => {
       }
       if (mode === 'hardware') assert.equal(report.gpu.gpu_compositing, 'enabled', 'GPU compositing disabled')
       fs.writeFileSync(path.join(root, 'main.png'), (await window.webContents.capturePage()).toPNG())
+      if (productName === 'MiaoCL') {
+        await window.webContents.executeJavaScript(`document.querySelector('[data-nav="resources"]').click()`)
+        await wait(300)
+        await window.webContents.executeJavaScript(`document.querySelector('[data-nav="bridge"]').click()`)
+        let panel
+        for (let i = 0; i < 40; i++) {
+          panel = await window.webContents.executeJavaScript(`document.querySelector('.client-configs')?.innerText || ''`)
+          if (panel.includes('客户端参数管理')) break
+          await wait(100)
+        }
+        assert(panel.includes('客户端参数管理') && panel.includes('SlimefunHelper') && panel.includes('Baritone'), 'Client config panel did not mount')
+        report.ui.clientConfigsPanel = true
+        fs.writeFileSync(path.join(root, 'client-configs.png'), (await window.webContents.capturePage()).toPNG())
+      }
       fs.writeFileSync(`out/windows-ui-${version}-${mode}.json`, JSON.stringify(report, null, 2))
       console.log('PASS packaged Windows UI', JSON.stringify(report)); clearTimeout(deadline); app.exit(0)
     } catch (error) { console.error(error); clearTimeout(deadline); app.exit(1) }
