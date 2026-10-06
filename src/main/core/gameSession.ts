@@ -43,6 +43,7 @@ export class GameSession {
   get count(): number {
     return this.sessions.size
   }
+  hasToken(token: symbol): boolean { return this.sessions.has(token) && !this.sessions.get(token)?.exited }
 
   /** 全部运行中的版本 id（改名/写操作的占用校验用） */
   runningIds(): Set<string> {

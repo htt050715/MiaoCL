@@ -1,4 +1,5 @@
 import { currentPlatformInfo } from './platform'
+import { registerClientConfigsIpc } from './core/clientConfigsIpc'
 import { applyUiWindowAutoFit } from './uiWindowSizing'
 import { registerRecordingsIpc } from './core/recordingsIpc'
 import { probeImport } from './core/importProbe'
@@ -1021,6 +1022,7 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
   })
 
   // ---------------- 桥接 MOD 实时配置面板 ----------------
+  registerClientConfigsIpc(getWin)
   ipcMain.handle(IPC.bridgeStatus, (_e, versionId: string) => modBridge.bridgeStatus(String(versionId ?? '')))
   ipcMain.handle(IPC.bridgeManifest, (_e, versionId: string) => modBridge.bridgeManifest(String(versionId ?? '')))
   ipcMain.handle(IPC.bridgeSet, (_e, versionId: string, id: string, value: unknown) =>

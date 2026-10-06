@@ -3,12 +3,12 @@ const fs = require('node:fs'), path = require('node:path'), os = require('node:o
 const crypto = require('node:crypto'), assert = require('node:assert/strict')
 const { spawnSync } = require('node:child_process')
 const Zip = require('adm-zip'), asar = require('asar')
-const version = require('../package.json').version
+const { version, productName = 'KAMUCL' } = require('../package.json')
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex')
 const packageRoot = path.resolve('release/win-unpacked')
 const archive = path.join(packageRoot, 'resources/app.asar')
-const packageFile = `release/KAMUCL-${version}.exe`
-const zipFile = `release/KAMUCL-${version}-windows-x64.zip`
+const packageFile = `release/${productName}-${version}.exe`
+const zipFile = `release/${productName}-${version}-windows-x64.zip`
 const zip = new Zip(zipFile), name = path.basename(packageFile)
 assert.equal(zip.getEntry(name).header.method, 0, 'EXE must use standard ZIP Store')
 assert.equal(hash(zip.readFile(name)), hash(fs.readFileSync(packageFile)))
@@ -39,7 +39,7 @@ function visit(dir) {
   }
 }
 visit(packageRoot)
-const unpackedFile = `release/KAMUCL-${version}-windows-x64-unpacked.zip`
+const unpackedFile = `release/${productName}-${version}-windows-x64-unpacked.zip`
 const unpackedZip = new Zip(unpackedFile)
 const unpackedFiles = unpackedZip.getEntries().filter(e => !e.isDirectory)
 assert.equal(unpackedFiles.length, files.length, 'Unpacked fallback file count')

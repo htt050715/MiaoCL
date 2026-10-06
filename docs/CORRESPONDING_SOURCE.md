@@ -1,7 +1,7 @@
 # 对应源码及重新构建
 
-仓库：https://github.com/kamubaba-i/KAMUCL
-新发行版应附带 KAMUCL-版本-source.zip，对应同名版本标签。
+仓库：https://github.com/htt050715/MiaoCL
+新发行版应附带 MiaoCL-版本-source.zip，对应同名版本标签。
 源码包含应用及 LGPL 部分、桥接 MOD、原生辅助程序、视觉资产、脚本、锁文件与许可。
 
 1. 安装 Node.js 22、npm、JDK 17 或更新版本；JAVA_HOME 指向 JDK。

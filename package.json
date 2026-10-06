@@ -1,9 +1,9 @@
 {
-  "name": "kamucl",
-  "productName": "KAMUCL",
-  "version": "1.1.16",
-  "description": "KAMUCL - 简约美观的一键式 Minecraft 启动器",
-  "homepage": "https://github.com/kamubaba-i/KAMUCL",
+  "name": "miaocl",
+  "productName": "MiaoCL",
+  "version": "1.1.17",
+  "description": "MiaoCL - Minecraft 启动器与客户端参数管理",
+  "homepage": "https://github.com/htt050715/MiaoCL",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -21,8 +21,8 @@
     "license:check": "node scripts/check-licenses.cjs"
   },
   "build": {
-    "appId": "com.kamucl.launcher",
-    "productName": "KAMUCL",
+    "appId": "cn.htt.miaocl.launcher",
+    "productName": "MiaoCL",
     "directories": {
       "output": "release"
     },
@@ -73,12 +73,12 @@
         "portable",
         "zip"
       ],
-      "artifactName": "KAMUCL-${version}-windows-${arch}.${ext}",
+      "artifactName": "MiaoCL-${version}-windows-${arch}.${ext}",
       "icon": "build/icon.png"
     },
     "portable": {
       "unpackDirName": false,
-      "artifactName": "KAMUCL-${version}.exe"
+      "artifactName": "MiaoCL-${version}.exe"
     },
     "appImage": {
       "executableArgs": []
@@ -91,7 +91,7 @@
       "category": "public.app-category.games",
       "icon": "build/icon-512.png",
       "identity": null,
-      "artifactName": "KAMUCL-${version}-mac-${arch}.${ext}"
+      "artifactName": "MiaoCL-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "maintainer": "kamubaba-i <325699197+kamubaba-i@users.noreply.github.com>",
@@ -101,15 +101,15 @@
         "tar.gz"
       ],
       "category": "Game",
-      "executableName": "kamucl",
+      "executableName": "miaocl",
       "icon": "build/icon-512.png",
-      "artifactName": "KAMUCL-${version}-linux-${arch}.${ext}",
+      "artifactName": "MiaoCL-${version}-linux-${arch}.${ext}",
       "desktop": {
         "entry": {
-          "Name": "KAMUCL",
+          "Name": "MiaoCL",
           "Comment": "Minecraft launcher",
           "Categories": "Game;",
-          "StartupWMClass": "KAMUCL"
+          "StartupWMClass": "MiaoCL"
         }
       },
       "synopsis": "Minecraft launcher"
@@ -120,7 +120,8 @@
     "adm-zip": "^0.6.0",
     "koffi": "^3.2.1",
     "undici": "^6.28.0",
-    "ws": "8.22.0"
+    "ws": "8.22.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",
@@ -142,6 +143,7 @@
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vue": "^3.5.13",
+    "vue-tsc": "^3.3.12",
     "yauzl": "^3.4.0",
     "yazl": "^3.3.1"
   },

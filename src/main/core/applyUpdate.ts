@@ -281,7 +281,7 @@ export function startUpdateDownload(release: ReleaseInfo, settings: Pick<Setting
   // Keep the previous ready update until its replacement has been fully verified.
   const updateDir = path.join(updateDirOf(exe), release.version)
   fs.mkdirSync(updateDir, { recursive: true })
-  const dest = path.join(updateDir, release.assetName || `KAMUCL-${release.version}.exe`)
+  const dest = path.join(updateDir, release.assetName || updateAssetName(release.version))
 
   const task = registerTask(`${mode === 'rollback' ? '回退' : '下载'}启动器 v${release.version}`, 'download')
   const [url, ...alternates] = updateDownloadCandidates(release.assetUrl, settings)
@@ -374,13 +374,13 @@ export async function restoreBackupAndRestart(): Promise<void> {
   if (!state || !exe) throw new Error('没有可用的备份')
   if (process.platform === 'darwin') return stageMacBackup(state.backupPath, state.backupVersion)
   if (process.platform === 'linux') return stageLinuxBackup(state.backupPath, state.backupVersion)
-  const dest = path.join(updateDirOf(exe), randomUUID(), `KAMUCL-${state.backupVersion}.exe`)
+  const dest = path.join(updateDirOf(exe), randomUUID(), `MiaoCL-${state.backupVersion}.exe`)
   fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.copyFileSync(state.backupPath, dest)
   await writePendingUpdate({ version: state.backupVersion, publishedAt: '', body: '', assetUrl: '', assetSize: fs.statSync(dest).size, assetName: path.basename(dest) }, dest, await sha256File(dest), 'rollback')
 }
 
 /** 校验本地安装包：版本号（文件名解析）与 SHA256（联网比对 Release，离线则 unknown 由用户自担确认） */
-const EXE_VERSION_RE = /^KAMUCL-(\d+\.\d+\.\d+(?:\.\d+)?)/i
+const EXE_VERSION_RE = /^MiaoCL-(\d+\.\d+\.\d+(?:\.\d+)?)/i
 export async function checkLocalUpdateFile(filePath: string): Promise<LocalUpdateCheck> {
   const fileName = path.basename(filePath)
   const st = fs.statSync(filePath)

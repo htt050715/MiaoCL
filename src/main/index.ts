@@ -109,7 +109,7 @@ function createWindow(startup?: Awaited<ReturnType<typeof createStartupSplash>>)
     ...initialWindow,
     icon: join(__dirname, '../../build/icon.png'),
     show: false,
-    title: 'KAMUCL',
+    title: 'MiaoCL',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

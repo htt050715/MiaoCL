@@ -3,6 +3,7 @@ import { promisify } from 'node:util'
 import { samePath } from './folderPaths'
 const execute=promisify(execFile)
 let cached:{at:number;commands:string[]}|undefined
+export function invalidateGameDirectoryUseCache() { cached = undefined }
 /** Keep process arguments in memory only. Never persist account tokens from command lines. */
 export async function externalGameUsesDirectory(directory:string):Promise<boolean>{
   if(!cached||Date.now()-cached.at>800){

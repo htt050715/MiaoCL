@@ -42,7 +42,7 @@ export async function upgradeInstalledBridge(gameDirectory: string, bundled: str
       if (await externalGameUsesDirectory(gameDirectory)) { messages.push('同目录游戏仍在运行，桥接退出修复将在全部退出后的下次启动应用'); continue }
       const next = await fs.promises.readFile(bundled)
       const metadata = JSON.parse(new AdmZip(next).readAsText('fabric.mod.json'))
-      if (metadata.id !== 'kamucl-bridge' || metadata.version !== '1.0.1') throw new Error('内置桥接修复文件版本不匹配')
+      if (metadata.id !== 'kamucl-bridge' || !['1.0.1','1.1.0'].includes(metadata.version)) throw new Error('内置桥接修复文件版本不匹配')
       await protectModChange(dir, [name], '桥接退出占用修复前')
       if (await externalGameUsesDirectory(gameDirectory) || isModLocked(dir, oldSha1)) throw new Error('桥接修复前目录占用或锁定状态发生变化')
       const temp = path.join(dir, '.kamucl-bridge-' + crypto.randomUUID() + '.tmp')
@@ -54,7 +54,7 @@ export async function upgradeInstalledBridge(gameDirectory: string, bundled: str
         if (!current.isFile() || current.isSymbolicLink() || sha(await fs.promises.readFile(file)) !== sha(old)) throw new Error('桥接文件已变化，保留当前文件')
         // Atomic replacement; an occupied file leaves the original in place.
         await fs.promises.rename(temp, file)
-        messages.push('已保护并更新内置桥接 MOD 至 1.0.1，修复退出后的后台线程占用')
+        messages.push('已保护并更新内置桥接 MOD 至 ' + metadata.version)
       } finally { await fs.promises.rm(temp, { force: true }) }
     }
     return messages

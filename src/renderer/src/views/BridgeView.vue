@@ -8,6 +8,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { bridgeInstall, bridgeInstalled, bridgeManifest, bridgeReset, bridgeSet, bridgeStatus, errText } from '../api'
 import { refreshInstalled, store, toast, selectedInstance, displayVersionName as versionLabel } from '../store'
 import SelectMenu from '../components/SelectMenu.vue'
+import ClientConfigsPanel from '../components/ClientConfigsPanel.vue'
 import type { BridgeParam, BridgeStatus } from '@shared/types'
 
 /** 面板面向正在运行的实例（游戏在哪台实例上跑就配置哪台）；未运行时跟随首页选中实例 */
@@ -198,13 +199,14 @@ function isModified(p: BridgeParam): boolean {
         <p v-if="presenceError" class="connection-error" role="alert">{{ presenceError }}</p>
       </div>
       <div class="bridge-guide-actions">
-        <button v-if="!status?.connected && bridgePresent === false" class="btn btn-gold" :disabled="installingBridge || !currentVersion?.loader" @click="onInstallBridge">{{ installingBridge ? '安装中…' : '安装桥接 MOD' }}</button>
+        <button class="btn btn-gold" :disabled="installingBridge || !currentVersion?.loader" @click="onInstallBridge">{{ installingBridge ? '安装中…' : bridgePresent ? '升级配置桥接 MOD' : '安装配置桥接 MOD' }}</button>
         <small v-if="currentVersion && !currentVersion.loader && bridgePresent===false" class="muted">纯净版不加载 MOD，请选择带加载器的实例。</small>
         <button v-if="!status?.connected" class="btn" :class="bridgePresent === false ? 'btn-ghost' : 'btn-gold'" @click="store.currentView = currentVersion ? 'home' : 'game'">{{ currentVersion ? '前往首页' : '选择游戏实例' }}</button>
         <button data-ui="BridgeView:b3c6f77da5ef" v-if="status?.connected && params.length" class="btn btn-ghost" @click="resetAll">全部恢复默认</button>
       </div>
     </div>
     <!-- 参数区 -->
+    <ClientConfigsPanel />
     <template v-if="status?.connected">
       <div data-ui="BridgeView:e2062fc19818" v-if="params.length" class="bridge-toolbar">
         <input data-ui="BridgeView:ca30db9d543d" v-model="search" class="input bridge-search" placeholder="搜索参数名称、说明、分组…" />

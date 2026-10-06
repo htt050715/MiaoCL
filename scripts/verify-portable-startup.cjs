@@ -1,9 +1,9 @@
 // Real portable cold/warm startup; private paths, no launcher settings and no Minecraft process.
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict'),{spawnSync}=require('node:child_process')
-const version=require('../package.json').version
+const {version,productName='KAMUCL'}=require('../package.json')
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'kamucl startup 中文-'))
-const exe=path.join(root,`KAMUCL ${version}.exe`)
-fs.copyFileSync(path.resolve(process.argv[2] || `release/KAMUCL-${version}.exe`),exe)
+const exe=path.join(root,`${productName} ${version}.exe`)
+fs.copyFileSync(path.resolve(process.argv[2] || `release/${productName}-${version}.exe`),exe)
 const results=[]
 for(const phase of ['cold','warm']){
  const marker=path.join(root,phase+'.json'),probe=path.join(root,phase+'-paint.txt'),start=Date.now()

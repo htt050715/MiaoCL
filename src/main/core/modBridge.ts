@@ -9,6 +9,8 @@ import { instanceDirectoryState } from './instances'
 import { readVersionJson } from './versions'
 import { parseModFile } from './modinfo'
 import { join } from 'node:path'
+import { randomUUID, createHash } from 'node:crypto'
+import { externalGameUsesDirectory } from './gameDirectoryUse'
 
 /** 内置桥接 MOD jar（构建时复制进 out/main，打包时 asarUnpack） */
 function bundledBridgeJar(): string {
@@ -29,14 +31,27 @@ export function bridgeInstalled(versionId: string): boolean {
 }
 
 /** 把内置桥接 MOD 安装到实例 mods 目录（幂等：已安装则跳过） */
-export function installBridge(versionId: string): { ok: boolean; already?: boolean; error?: string } {
+export async function installBridge(versionId: string): Promise<{ ok: boolean; already?: boolean; error?: string }> {
   try {
-    if (bridgeInstalled(versionId)) return { ok: true, already: true }
     const src = bundledBridgeJar()
     if (!fs.existsSync(src)) return { ok: false, error: '内置桥接 MOD 文件缺失，请重新安装启动器' }
+    if (await externalGameUsesDirectory(gameDirOf(versionId))) return {ok:false,error:'请先退出使用此目录的客户端，再安装或升级桥接 MOD'}
     const modsDir = path.join(gameDirOf(versionId), 'mods')
     fs.mkdirSync(modsDir, { recursive: true })
-    fs.copyFileSync(src, path.join(modsDir, 'kamucl-bridge-1.0.1.jar'))
+    if (fs.lstatSync(modsDir).isSymbolicLink()) throw Error('mods 目录不能是链接')
+    const existing = fs.readdirSync(modsDir).filter(name => name.endsWith('.jar') && parseModFile(path.join(modsDir,name)).id === 'kamucl-bridge')
+    if (existing.length > 1) throw Error('检测到多个桥接 MOD，请先整理重复安装')
+    const next = fs.readFileSync(src), destination = path.join(modsDir,existing[0] ?? 'miaocl-config-bridge-1.1.0.jar')
+    if (fs.existsSync(destination)) {
+      if (fs.lstatSync(destination).isSymbolicLink()) throw Error('桥接 MOD 不能是链接')
+      const old = fs.readFileSync(destination)
+      if (createHash('sha256').update(old).digest('hex') === createHash('sha256').update(next).digest('hex')) return {ok:true,already:true}
+      const backup = path.join(gameDirOf(versionId),'.miaocl-configs','backups','bridge-' + randomUUID())
+      fs.mkdirSync(backup,{recursive:true}); fs.writeFileSync(path.join(backup,existing[0]),old)
+    }
+    const temp = destination + '.miaocl-' + randomUUID() + '.tmp'
+    try { fs.writeFileSync(temp,next); if (await externalGameUsesDirectory(gameDirOf(versionId))) throw Error('客户端已启动，桥接升级已取消'); fs.renameSync(temp,destination) }
+    finally { if (fs.existsSync(temp)) fs.unlinkSync(temp) }
     return { ok: true }
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
@@ -99,16 +114,17 @@ export function readDiscovery(versionId: string): BridgeDiscovery | null {
   }
 }
 
-async function call(discovery: BridgeDiscovery, pathname: string, body?: unknown, timeoutMs = 3000): Promise<unknown> {
+export async function callBridge(discovery: BridgeDiscovery, pathname: string, body?: unknown, timeoutMs = 3000): Promise<unknown> {
   const res = await fetch(`http://127.0.0.1:${discovery.port}/kamucl/v1/${pathname}`, {
     method: body === undefined ? 'GET' : 'POST',
     signal: AbortSignal.timeout(timeoutMs),
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json', 'X-Kamucl-Token': discovery.token },
+    headers: { 'Content-Type': 'application/json', 'X-Kamucl-Token': discovery.token },
     body: body === undefined ? undefined : JSON.stringify(body)
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
+const call = callBridge
 
 /** 连接状态：发现文件存在且 ping 通（游戏退出后端口关闭，ping 失败即断开） */
 export async function bridgeStatus(versionId: string): Promise<BridgeStatus> {

@@ -3,7 +3,7 @@
  */
 
 /** GitHub 仓库（自更新检查与 Release 下载来源） */
-export const GITHUB_REPO = 'kamubaba-i/KAMUCL'
+export const GITHUB_REPO = 'htt050715/MiaoCL'
 
 /** KAMUCL 内测群号：更新弹窗「复制群号」按钮使用；发版前如需更换改这里 */
 export const QQ_GROUP_NUMBER = '1049769942'

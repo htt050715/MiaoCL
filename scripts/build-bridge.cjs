@@ -1,6 +1,6 @@
 // Rebuild the bundled bridge from Java sources with pinned, verified compile-only dependencies.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{execFileSync}=require('node:child_process')
-const root=path.resolve(__dirname,'..'),bridge=path.join(root,'bridge'),classes=path.join(bridge,'build/classes'),output=path.join(bridge,'dist/kamucl-bridge-1.0.1.jar')
+const root=path.resolve(__dirname,'..'),bridge=path.join(root,'bridge'),classes=path.join(bridge,'build/classes'),output=path.join(bridge,'dist/kamucl-bridge-1.1.0.jar')
 const dependencies=[
  {file:'net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar',base:'https://maven.fabricmc.net/',hash:'93044e4dd46de5d8136701292f05e868da096d2c9fddb4793e4fdbcc63efc695'},
  {file:'com/google/code/gson/gson/2.14.0/gson-2.14.0.jar',base:'https://repo.maven.apache.org/maven2/',hash:'2cbd119bf1961c28788310963dc80ba65f58cdeec1dd139c8bdb1240faa2c36f'}]
@@ -12,7 +12,10 @@ async function main(){
    if(local&&fs.existsSync(local)&&hash(local)===dep.hash)fs.copyFileSync(local,file)
    else{const response=await fetch(dep.base+dep.file);if(!response.ok)throw new Error(`Build dependency HTTP ${response.status}`);const data=Buffer.from(await response.arrayBuffer());if(crypto.createHash('sha256').update(data).digest('hex')!==dep.hash)throw new Error('Build dependency checksum mismatch');fs.writeFileSync(file,data)}
  }cp.push(file)}
- const tool=name=>process.env.JAVA_HOME?path.join(process.env.JAVA_HOME,'bin',name+(process.platform==='win32'?'.exe':'')):name
+ const javaHome=process.env.JAVA_HOME||['C:/Program Files/Java','C:/Program Files/Eclipse Adoptium','C:/Program Files/Microsoft'].flatMap(root=>{
+   try{return fs.readdirSync(root,{withFileTypes:true}).filter(entry=>entry.isDirectory()&&/^jdk-21/i.test(entry.name)).map(entry=>path.join(root,entry.name))}catch{return []}
+ }).sort().at(-1)
+ const tool=name=>javaHome?path.join(javaHome,'bin',name+(process.platform==='win32'?'.exe':'')):name
  if(!classes.startsWith(bridge+path.sep))throw new Error('Invalid build output path')
  fs.rmSync(classes,{recursive:true,force:true});fs.mkdirSync(classes,{recursive:true});fs.mkdirSync(path.dirname(output),{recursive:true})
  const sources=[];const scan=dir=>{for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())scan(file);else if(file.endsWith('.java'))sources.push(file)}};scan(path.join(bridge,'src/cn'))

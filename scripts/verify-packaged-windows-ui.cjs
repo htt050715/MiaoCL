@@ -8,6 +8,7 @@ const { Worker } = require('node:worker_threads')
 const archive = path.resolve(process.argv[2] || 'release/win-unpacked/resources/app.asar')
 const packedRequire = createRequire(path.join(archive, 'package.json'))
 const version = packedRequire('./package.json').version
+const productName = packedRequire('./package.json').productName || 'KAMUCL'
 const compact = !fs.existsSync(path.join(path.dirname(process.execPath), 'dxcompiler.dll'))
 const mode = process.env.KAMUCL_TEST_SOFTWARE === '1' ? 'software' : 'hardware'
 if (mode === 'software') {
@@ -28,7 +29,7 @@ app.whenReady().then(() => {
 })
 app.on('browser-window-created', (_event, window) => {
   window.show = () => {}; window.showInactive = () => {}
-  if (window.getTitle() !== 'KAMUCL') return
+  if (window.getTitle() !== productName) return
   window.webContents.once('did-finish-load', async () => {
     try {
       let ui

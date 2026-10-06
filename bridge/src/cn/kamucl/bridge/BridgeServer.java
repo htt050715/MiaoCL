@@ -39,6 +39,10 @@ public final class BridgeServer {
         server.createContext("/kamucl/v1/manifest", exchange -> respond(exchange, null, BridgeServer::manifest));
         server.createContext("/kamucl/v1/set", exchange -> respond(exchange, token, () -> setParam(exchange)));
         server.createContext("/kamucl/v1/reset", exchange -> respond(exchange, token, () -> resetParam(exchange)));
+        server.createContext("/kamucl/v1/client-configs/manifest", exchange -> respond(exchange, token, () -> clientConfigsManifest()));
+        server.createContext("/kamucl/v1/client-configs/sync", exchange -> respond(exchange, token, () -> clientConfigsSync()));
+        server.createContext("/kamucl/v1/client-configs/apply", exchange -> respond(exchange, token, () -> clientConfigsApply(exchange)));
+        server.createContext("/kamucl/v1/client-configs/full-modules", exchange -> respond(exchange, token, () -> clientConfigsFullModules()));
         // HttpServer's dispatcher inherits daemon status from the thread calling
         // start(). Starting on Fabric's render thread kept the JVM alive after
         // Minecraft returned from main (Client shutdown from post-main watchdog).
@@ -153,11 +157,27 @@ public final class BridgeServer {
     }
 
     private static Map<?, ?> readJson(HttpExchange exchange) throws IOException {
-        String text = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        byte[] bytes = exchange.getRequestBody().readNBytes(768 * 1024 * 1024 + 1);
+        if (bytes.length > 768 * 1024 * 1024) throw new IOException("请求数据过大");
+        String text = new String(bytes, StandardCharsets.UTF_8);
         if (text.isBlank()) return Map.of();
         Object parsed = GSON.fromJson(text, Object.class);
         if (parsed instanceof Map<?, ?>) return (Map<?, ?>) parsed;
         return Map.of();
+    }
+    private static Map<String,Object> clientConfigsManifest() throws IOException {
+        try { return ClientConfigs.mainThread(ClientConfigs::manifest); } catch (Exception e) { return Map.of("ok",false,"error",String.valueOf(e.getMessage())); }
+    }
+    private static Map<String,Object> clientConfigsSync() throws IOException {
+        try { return ClientConfigs.mainThread(ClientConfigs::sync); } catch (Exception e) { return Map.of("ok",false,"error",String.valueOf(e.getMessage())); }
+    }
+    private static Map<String,Object> clientConfigsFullModules() throws IOException {
+        try { return ClientConfigs.mainThread(ClientConfigs::fullModules); } catch (Exception e) { return Map.of("ok",false,"error",String.valueOf(e.getCause()!=null?e.getCause().getMessage():e.getMessage())); }
+    }
+    private static Map<String,Object> clientConfigsApply(HttpExchange exchange) throws IOException {
+        if (!"POST".equals(exchange.getRequestMethod())) return Map.of("ok",false,"error","配置修改需要 POST 请求");
+        Map<?,?> body=readJson(exchange);
+        try { return ClientConfigs.mainThread(() -> ClientConfigs.apply(body)); } catch (Exception e) { return Map.of("ok",false,"error",String.valueOf(e.getCause()!=null?e.getCause().getMessage():e.getMessage())); }
     }
 
     private interface Handler { Map<String, Object> handle() throws IOException; }

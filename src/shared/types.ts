@@ -884,6 +884,15 @@ export const IPC = {
   bridgeReset: 'bridge:reset', // (versionId: string, id?: string) => { ok, error? }
   bridgeInstall: 'bridge:install', // (versionId: string) => { ok, already?, error? }  内置桥接 MOD 装入实例 mods
   bridgeInstalled: 'bridge:installed', // (versionId: string) => boolean
+  clientConfigsCatalog: 'client-configs:catalog',
+  clientConfigsRead: 'client-configs:read',
+  clientConfigsCommit: 'client-configs:commit',
+  clientConfigsCancelPending: 'client-configs:cancel-pending',
+  clientConfigsProfileSave: 'client-configs:profile-save',
+  clientConfigsProfileSwitch: 'client-configs:profile-switch',
+  clientConfigsExport: 'client-configs:export',
+  clientConfigsImport: 'client-configs:import',
+  clientConfigsActivateSnapshot: 'client-configs:activate-snapshot',
 
   // 整合包
   importProbe: 'import:probe', // (inputPath: string) => ImportProbeResult

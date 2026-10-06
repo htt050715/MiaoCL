@@ -4,6 +4,17 @@
  */
 import { refreshSkinAfter } from './skinRevision'
 import { IPC, IPC_EVENT } from '@shared/types'
+import type { ConfigCatalog, ConfigDocument, ConfigSaveMode, ConfigScope, ConfigCommitResult } from '@shared/clientConfigs'
+
+export const clientConfigsCatalog = (id:string,folder:string) => invoke<ConfigCatalog>(IPC.clientConfigsCatalog,id,folder)
+export const clientConfigsRead = (id:string,folder:string,file:string,flush=false) => invoke<ConfigDocument>(IPC.clientConfigsRead,id,folder,file,flush)
+export const clientConfigsCommit = (id:string,folder:string,docs:ConfigDocument[],mode:ConfigSaveMode) => invoke<ConfigCommitResult>(IPC.clientConfigsCommit,id,folder,docs,mode)
+export const clientConfigsCancelPending = (id:string,folder:string) => invoke<void>(IPC.clientConfigsCancelPending,id,folder)
+export const clientConfigsProfileSave = (id:string,folder:string,scope:ConfigScope,name:string) => invoke<void>(IPC.clientConfigsProfileSave,id,folder,scope,name)
+export const clientConfigsProfileSwitch = (id:string,folder:string,name:string,mode:ConfigSaveMode) => invoke<ConfigCommitResult>(IPC.clientConfigsProfileSwitch,id,folder,name,mode)
+export const clientConfigsExport = (id:string,folder:string,scope:ConfigScope) => invoke<boolean>(IPC.clientConfigsExport,id,folder,scope)
+export const clientConfigsImport = (id:string,folder:string,mode:ConfigSaveMode) => invoke<ConfigCommitResult|null>(IPC.clientConfigsImport,id,folder,mode)
+export const clientConfigsActivateSnapshot = (id:string,folder:string,file:string,mode:ConfigSaveMode) => invoke<ConfigCommitResult>(IPC.clientConfigsActivateSnapshot,id,folder,file,mode)
 import type {
   DefaultResourcePack,
   Account,

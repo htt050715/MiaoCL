@@ -74,6 +74,33 @@ interface LaunchOptions { createCommandWorld?: boolean; singleplayerWorld?: stri
 interface Invocation { versionId: string; folder: string; emit: ProgressEmit; sendLog: SendLog; onState: OnState; serverAddress?: string; options: LaunchOptions }
 let invocation: Invocation | undefined
 let restartPending: { invocation: Invocation; sessionToken?: symbol; forceToken?: string; waiting: boolean } | undefined
+let beforeClientConfigLaunch: ((versionId: string) => Promise<void>) | undefined
+const sessionInvocations = new Map<symbol, Invocation>()
+export function setBeforeClientConfigLaunch(hook: (versionId: string) => Promise<void>) { beforeClientConfigLaunch = hook }
+
+/** Close the explicitly selected owned JVM, save after actual exit, then reuse its launch context. */
+export async function restartForClientConfig(versionId: string, folder: string, save: () => Promise<void>): Promise<void> {
+  if (restartPending) throw new Error('已有重启请求正在处理')
+  const token = [...sessionInvocations.keys()].reverse().find(t => {
+    const context = sessionInvocations.get(t)!
+    return context.versionId === versionId && pathIdentity(context.folder) === pathIdentity(folder) && gameSession.hasToken(t)
+  })
+  const previous = token && sessionInvocations.get(token)
+  if (!previous || !token) throw new Error('所选实例没有可重启的启动会话')
+  restartPending = {invocation:previous,sessionToken:token,waiting:true}
+  try {
+    await gameSession.stopGracefully(requestGameWindowClose,30000,token)
+    await save()
+    previous.onState({status:'launching',text:'参数已保存，正在重新启动…'})
+    const next = gameSession.reserve(versionId)
+    sessionInvocations.set(next,previous)
+    try { await withGameFolder(folder,() => launchOwned(versionId,previous.emit,previous.sendLog,previous.onState,previous.serverAddress,next,{...previous.options,createCommandWorld:false})) }
+    catch (error) { gameSession.release(next); sessionInvocations.delete(next); previous.onState({status:'error',text:error instanceof Error ? error.message : String(error)}); throw error }
+  } finally { restartPending = undefined; sessionInvocations.delete(token) }
+}
+export function ownsClientConfigSession(versionId: string, folder: string): boolean {
+  return [...sessionInvocations].some(([token,ctx]) => ctx.versionId === versionId && pathIdentity(ctx.folder) === pathIdentity(folder) && gameSession.hasToken(token))
+}
 
 export function cancelRestart(): void {
   if (restartPending?.waiting) throw new Error('仍在等待游戏正常退出，请稍后取消')
@@ -269,12 +296,15 @@ export async function launch(
 ): Promise<void> {
   if (restartPending) throw new Error('正在重启游戏，请稍后再启动')
   requireDesktopGamePlatform(process.platform)
+  await beforeClientConfigLaunch?.(versionId)
   const token = gameSession.reserve(versionId)
   launchLog.info(`开始启动实例 ${versionId}${serverAddress ? `（直达服务器 ${serverAddress}）` : ''}`)
   invocation = { versionId, folder: gameDir(), emit, sendLog, onState, serverAddress, options: { ...options } }
+  sessionInvocations.set(token,invocation)
   try { await launchOwned(versionId, emit, sendLog, onState, serverAddress, token, invocation.options) }
   catch (error) {
     gameSession.release(token)
+    sessionInvocations.delete(token)
     launchLog.error(`实例 ${versionId} 启动失败`, error)
     throw error
   }
