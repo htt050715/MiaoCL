@@ -1,5 +1,6 @@
 import './download-cancellation.test'
 import './slimefun-localization.test'
+import './meteor-config-workspace.test'
 import './appearance-motion-110.test'
 import './platform-parity-111.test'
 import './harmony-native-adaptations-111.test.cjs'

@@ -8,7 +8,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { bridgeInstall, bridgeInstalled, bridgeManifest, bridgeReset, bridgeSet, bridgeStatus, errText } from '../api'
 import { refreshInstalled, store, toast, selectedInstance, displayVersionName as versionLabel } from '../store'
 import SelectMenu from '../components/SelectMenu.vue'
-import ClientConfigsPanel from '../components/ClientConfigsPanel.vue'
 import type { BridgeParam, BridgeStatus } from '@shared/types'
 
 /** 面板面向正在运行的实例（游戏在哪台实例上跑就配置哪台）；未运行时跟随首页选中实例 */
@@ -206,7 +205,7 @@ function isModified(p: BridgeParam): boolean {
       </div>
     </div>
     <!-- 参数区 -->
-    <ClientConfigsPanel />
+    <div class="card config-workspace-entry"><div><strong>客户端参数工作区</strong><p class="muted">SlimefunHelper、Meteor 模块、好友与 Baritone 配置。按分类查看、编辑、保存和切换完整配置。</p></div><button class="btn btn-gold" data-open-client-configs @click="store.currentView='client-configs'">调整客户端参数</button></div>
     <template v-if="status?.connected">
       <div data-ui="BridgeView:e2062fc19818" v-if="params.length" class="bridge-toolbar">
         <input data-ui="BridgeView:ca30db9d543d" v-model="search" class="input bridge-search" placeholder="搜索参数名称、说明、分组…" />
@@ -289,6 +288,7 @@ function isModified(p: BridgeParam): boolean {
 
 <style scoped>
 .bridge-page { max-width: 860px; }
+.config-workspace-entry{display:flex;align-items:center;gap:20px;padding:var(--card-pad);margin-top:16px}.config-workspace-entry>div{flex:1;min-width:0}.config-workspace-entry p{font-size:var(--text-sm);line-height:1.6;margin:8px 0 0}.config-workspace-entry>.btn{flex:none}
 .bridge-status { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--card-pad); flex-wrap: wrap; }
 .bridge-status.connected { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .bridge-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }

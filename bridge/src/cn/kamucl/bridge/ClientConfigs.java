@@ -138,8 +138,15 @@ final class ClientConfigs {
                     ((List<Object>)settings).add(invoke(setting,"toTag"));
                     Map<String,Object> metadata=new LinkedHashMap<>();metadata.put("module",name);metadata.put("group",groupName);metadata.put("name",get(setting,"name"));metadata.put("title",get(setting,"title"));metadata.put("description",get(setting,"description"));
                     Object value=invoke(setting,"get");
-                    if (value instanceof Enum<?>) { List<String> options=new ArrayList<>(); for (Object option:((Enum<?>)value).getDeclaringClass().getEnumConstants()) options.add(option.toString()); metadata.put("options",options); }
-                    for (String boundary:List.of("min","max")) try {Object bound=get(setting,boundary);if(bound instanceof Number&&Double.isFinite(((Number)bound).doubleValue()))metadata.put(boundary,bound);} catch (NoSuchFieldException ignored) {}
+                    metadata.put("kind",setting.getClass().getSimpleName());
+                    if (value instanceof Enum<?>) {
+                        List<String> options=new ArrayList<>();Map<String,String> names=new LinkedHashMap<>();
+                        Class<?> enumType=((Enum<?>)value).getDeclaringClass();
+                        for(Object option:enumType.getEnumConstants()){options.add(option.toString());names.put(option.toString(),((Enum<?>)option).name());}
+                        metadata.put("options",options);metadata.put("enumType",enumType.getSimpleName());metadata.put("enumNames",names);
+                    }
+                    for (String boundary:List.of("min","max","sliderMin","sliderMax")) try {Object bound=get(setting,boundary);if(bound instanceof Number&&Double.isFinite(((Number)bound).doubleValue()))metadata.put(boundary,bound);} catch (NoSuchFieldException ignored) {}
+                    try{metadata.put("noSlider",get(setting,"noSlider"));}catch(NoSuchFieldException ignored){}
                     schema.add(metadata);
                 }
                 nbtPut(groupTag,"settings",settings);((List<Object>)groups).add(groupTag);

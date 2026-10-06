@@ -10,6 +10,12 @@ export interface ConfigNode {
   options?: string[]
   min?: number
   max?: number
+  kind?: string
+  sliderMin?: number
+  sliderMax?: number
+  noSlider?: boolean
+  enumType?: string
+  enumNames?: Record<string, string>
 }
 export interface ConfigDocument {
   warning?: string
@@ -31,6 +37,7 @@ export interface ConfigRuntime {
   reason?: string
 }
 export interface ConfigCatalog {
+  meteorTranslations?: Record<string, string>
   directory: string
   files: ConfigFile[]
   profiles: string[]

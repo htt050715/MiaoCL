@@ -23,6 +23,7 @@ export type ViewName =
   | 'projections'
   | 'keys'
   | 'bridge'
+  | 'client-configs'
   | 'skins'
   | 'community'
   | 'servers'

@@ -87,6 +87,7 @@ const PacksView = defineAsyncComponent(() => import('./views/PacksView.vue'))
 const ShadersView = defineAsyncComponent(() => import('./views/ShadersView.vue'))
 const KeysView = defineAsyncComponent(() => import('./views/KeysView.vue'))
 const BridgeView = defineAsyncComponent(() => import('./views/BridgeView.vue'))
+const ClientConfigsView = defineAsyncComponent(() => import('./views/ClientConfigsView.vue'))
 const SkinsView = defineAsyncComponent(() => import('./views/SkinsView.vue'))
 const CommunityView = defineAsyncComponent(() => import('./views/CommunityView.vue'))
 const ServersView = defineAsyncComponent(() => import('./views/ServersView.vue'))
@@ -110,6 +111,7 @@ const viewMap: Record<ViewName, Component> = {
   shaders: ShadersView,
   keys: KeysView,
   bridge: BridgeView,
+  'client-configs': ClientConfigsView,
   skins: SkinsView,
   community: CommunityView,
   servers: ServersView,
@@ -197,6 +199,7 @@ const resourceSubItems: Array<{ key: ViewName; label: string; icon: string }> = 
     label: 'MOD 面板',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="3.5"/></svg>'
   },
+  {key:'client-configs',label:'客户端参数',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>'},
   {
     key: 'servers',
     label: '服务器',
@@ -209,7 +212,7 @@ const resourceSubItems: Array<{ key: ViewName; label: string; icon: string }> = 
 const resourceExpanded = ref(localStorage.getItem('kamucl.resourceExpanded') === 'true')
 watch(resourceExpanded, value => localStorage.setItem('kamucl.resourceExpanded', String(value)))
 const inResourceGroup = computed(() =>
-  ['mods', 'packs', 'shaders', 'bridge', 'servers', 'recordings', 'projections'].includes(store.currentView)
+  ['mods', 'packs', 'shaders', 'bridge', 'client-configs', 'servers', 'recordings', 'projections'].includes(store.currentView)
 )
 
 // Route timings also respect the OS preference when Vue uses explicit timeout fallback.

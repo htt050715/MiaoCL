@@ -1,5 +1,17 @@
 # Third-party notices / 第三方声明
 
+## Meteor configuration schema
+
+`src/shared/meteorSchema.json` contains declarative configuration facts (module
+identifiers, categories, setting types, bounds and enum values), extracted from
+the workspace's latest Meteor 1.21.11 source and its Meteor Rejects / Meteor Miku
+addons. The source fingerprints are included in the snapshot; extraction can be
+repeated with `scripts/import-meteor-schema.cjs`. No Java implementations or MOD
+binaries are bundled in the launcher. Connected client metadata takes precedence.
+Chinese labels are read from the selected instance's installed I18n MODs and
+enabled resource packs at runtime, following their translation keys. These
+language resources are not redistributed in this package.
+
 ## SlimefunHelper parameter translations — CC0-1.0
 
 Source: https://github.com/m1919810/SlimefunHelper
