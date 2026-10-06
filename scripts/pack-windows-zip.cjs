@@ -30,7 +30,7 @@ async function packWindowsZip(root = path.resolve(__dirname, '..')) {
   // self-extraction cannot run. It is explicitly named and not the compact ZIP.
   const unpacked = path.join(root, 'release', `${productName}-${version}-windows-x64-unpacked.zip`)
   await require('app-builder-lib/out/targets/archive').archive('zip', unpacked, path.join(root, 'release/win-unpacked'), {
-    withoutDir: true, compression: 'maximum'
+    withoutDir: true, compression: 'normal'
   })
   console.log(JSON.stringify({ unpacked, bytes: fs.statSync(unpacked).size }))
   return report
