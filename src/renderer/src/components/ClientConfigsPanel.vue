@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {computed,onMounted,onUnmounted,ref,watch} from 'vue'
-import type {ConfigCatalog,ConfigDocument,ConfigSaveMode,ConfigScope} from '@shared/clientConfigs'
+import type {ConfigCatalog,ConfigDocument,ConfigSaveMode,ConfigScope,ConfigNode} from '@shared/clientConfigs'
 import {clientConfigsCatalog,clientConfigsRead,clientConfigsCommit,clientConfigsProfileSave,clientConfigsProfileSwitch,clientConfigsExport,clientConfigsImport,clientConfigsCancelPending,clientConfigsActivateSnapshot,errText} from '../api'
 import {selectedInstance,toast} from '../store'
 import SelectMenu from './SelectMenu.vue'
@@ -17,7 +17,7 @@ const current=computed(() => documents.value[file.value])
 const loading=ref(false),advanced=ref(false)
 const slimeEnabledOnly=ref(true)
 const slimeModules=computed(()=>(catalog.value?.runtime.slimeModules??[]).filter(m=>(!slimeEnabledOnly.value||slimeActive(m))&&(!search.value||(m.title+' '+m.name).toLowerCase().includes(search.value.toLowerCase()))))
-function slimeNode(m:NonNullable<ConfigCatalog['runtime']['slimeModules']>[number]){let node=documents.value[m.file]?.root;for(const key of m.path)node=configChild(node,key);return node}
+function slimeNode(m:NonNullable<ConfigCatalog['runtime']['slimeModules']>[number]){let node:ConfigNode|undefined=documents.value[m.file]?.root;for(const key of m.path)node=configChild(node,key);return node}
 function slimeActive(m:NonNullable<ConfigCatalog['runtime']['slimeModules']>[number]){const node=slimeNode(m);return node?configEnabled(node):m.active}
 async function toggleSlime(m:NonNullable<ConfigCatalog['runtime']['slimeModules']>[number],event:Event){
   const active=(event.target as HTMLInputElement).checked;await openFile(m.file)
