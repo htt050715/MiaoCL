@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ClientConfigsPanel from '../components/ClientConfigsPanel.vue'
 import { store,selectedInstance,displayVersionName } from '../store'
+import '../client-configs.css'
 </script>
 <template>
   <div class="page client-configs-page">
