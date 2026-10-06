@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
 const {spawn,spawnSync}=require('node:child_process');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'KAMUCL bridge exit 中文 '));
 const baseline=process.argv.includes('--baseline');
-const jar=path.resolve(process.env.KAMUCL_BRIDGE_JAR||(baseline?'tests/fixtures/kamucl-bridge-1.0.0.jar':'bridge/dist/kamucl-bridge-1.1.0.jar'));
+const jar=path.resolve(process.env.KAMUCL_BRIDGE_JAR||(baseline?'tests/fixtures/kamucl-bridge-1.0.0.jar':'bridge/dist/kamucl-bridge-1.1.1.jar'));
 const javaHome=process.env.JAVA_HOME||['C:/Program Files/Java','C:/Program Files/Eclipse Adoptium','C:/Program Files/Microsoft'].flatMap(base=>{try{return fs.readdirSync(base,{withFileTypes:true}).filter(e=>e.isDirectory()&&/^jdk-21/i.test(e.name)).map(e=>path.join(base,e.name))}catch{return []}}).sort().at(-1);
 const tool=n=>javaHome?path.join(javaHome,'bin',n+(process.platform==='win32'?'.exe':'')):n;
 const cp=[root,jar,path.resolve('bridge/.cache/gson-2.14.0.jar')].join(path.delimiter);

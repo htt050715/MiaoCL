@@ -5,6 +5,8 @@ import {clientConfigsCatalog,clientConfigsRead,clientConfigsCommit,clientConfigs
 import {selectedInstance,toast} from '../store'
 import SelectMenu from './SelectMenu.vue'
 import ConfigNodeEditor from './ConfigNodeEditor.vue'
+import ConfigFeaturesEditor from './ConfigFeaturesEditor.vue'
+import {configChild,configEnabled} from '@shared/configFeatures'
 import ConfirmModal from './ConfirmModal.vue'
 const catalog=ref<ConfigCatalog>(), scope=ref<ConfigScope>('slimefunhelper'), file=ref(''), search=ref(''), fileSearch=ref(''), profile=ref(''), profileName=ref(''),error=ref(''),busy=ref(false)
 const documents=ref<Record<string,ConfigDocument>>({}),originals=ref<Record<string,string>>({})
@@ -12,22 +14,46 @@ const operation=ref<'save'|'import'|'switch'|'snapshot'|null>(null),discard=ref(
 let epoch=0, disposed=false, polling=false, timer:ReturnType<typeof setInterval>|undefined
 const target=computed(() => selectedInstance.value ? {id:selectedInstance.value.id,folder:selectedInstance.value.folder} : undefined)
 const current=computed(() => documents.value[file.value])
+const loading=ref(false),advanced=ref(false)
+const slimeEnabledOnly=ref(true)
+const slimeModules=computed(()=>(catalog.value?.runtime.slimeModules??[]).filter(m=>(!slimeEnabledOnly.value||slimeActive(m))&&(!search.value||(m.title+' '+m.name).toLowerCase().includes(search.value.toLowerCase()))))
+function slimeNode(m:NonNullable<ConfigCatalog['runtime']['slimeModules']>[number]){let node=documents.value[m.file]?.root;for(const key of m.path)node=configChild(node,key);return node}
+function slimeActive(m:NonNullable<ConfigCatalog['runtime']['slimeModules']>[number]){const node=slimeNode(m);return node?configEnabled(node):m.active}
+async function toggleSlime(m:NonNullable<ConfigCatalog['runtime']['slimeModules']>[number],event:Event){
+  const active=(event.target as HTMLInputElement).checked;await openFile(m.file)
+  let node=documents.value[m.file]?.root
+  for(let i=0;i<m.path.length;i++){
+    if(!node||node.type!=='object'){error.value='无法定位模块开关，请刷新配置';return}
+    let child=configChild(node,m.path[i])
+    if(!child){child=i===m.path.length-1?{type:'boolean',value:m.active}:{type:'object',children:[]};node.children??=[];node.children.push({key:m.path[i],node:child})}
+    node=child
+  }
+  if(!node||node.type!=='boolean'){error.value='模块开关类型不匹配，请刷新配置';return}node.value=active
+}
+const featureFile=computed(()=>file.value==='meteor-client/modules.nbt'||/^slimefunhelper\/runtime\/[^/]+\.ya?ml$/i.test(file.value))
 const dirty=computed(() => Object.values(documents.value).filter(doc => JSON.stringify(doc)!==originals.value[doc.file]))
 const options=computed(() => (catalog.value?.files??[]).filter(f => (scope.value==='all'||f.scope===scope.value)&&f.file.toLowerCase().includes(fileSearch.value.toLowerCase())).map(f=>({value:f.file,label:f.file,description:Math.round(f.size/1024)+' KB'})))
-const modules=computed(() => (catalog.value?.runtime.modules??[]).filter(m => !search.value || (m.title+' '+m.name+' '+m.category+' '+m.addon).toLowerCase().includes(search.value.toLowerCase())))
 async function refresh() {
   const t=target.value,request=epoch
   if(!t||polling||disposed)return
   polling=true
-  try {const next=await clientConfigsCatalog(t.id,t.folder);if(request===epoch){catalog.value=next;error.value=''} }
+  try {const next=await clientConfigsCatalog(t.id,t.folder);if(request===epoch){catalog.value=next} }
   catch(e){if(request===epoch)error.value=errText(e)} finally{polling=false}
+  if(request===epoch&&!file.value)await openDefault()
+}
+async function openDefault(){const entries=options.value;const preferred=scope.value==='meteor'?'meteor-client/modules.nbt':'slimefunhelper/runtime/combat.yml';await openFile(entries.find(o=>o.value===preferred)?.value??entries[0]?.value??'')}
+async function reloadCurrent(){
+  if(dirty.value.length){error.value='请先保存或取消修改，再同步游戏当前参数';return}
+  const name=file.value;await refresh()
+  if(name){delete documents.value[name];delete originals.value[name];await openFile(name)}
 }
 async function openFile(name:string) {
   const t=target.value,request=epoch
   if(!t||!name||busy.value)return
   file.value=name
   if(documents.value[name])return
-  try{const doc=await clientConfigsRead(t.id,t.folder,name,true);if(request===epoch){documents.value[name]=doc;originals.value[name]=JSON.stringify(doc)}}catch(e){if(request===epoch)error.value=errText(e)}
+  loading.value=true;error.value=''
+  try{const doc=await clientConfigsRead(t.id,t.folder,name,true);if(request===epoch){documents.value[name]=doc;originals.value[name]=JSON.stringify(doc)}}catch(e){if(request===epoch)error.value=errText(e)}finally{loading.value=false}
 }
 async function run(mode:ConfigSaveMode) {
   const t=target.value,request=epoch,op=operation.value
@@ -47,14 +73,14 @@ async function switchHot(op:'switch'|'snapshot'){operation.value=op;await run('h
 function discardEdits(){documents.value={};originals.value={};operation.value=null;discard.value=false;error.value='';void openAfterSave()}
 async function discardPending(){const t=target.value;if(!t)return;busy.value=true;try{await clientConfigsCancelPending(t.id,t.folder);cancelPending.value=false;discardEdits();await refresh()}catch(e){error.value=errText(e)}finally{busy.value=false}}
 watch(()=>[target.value?.id,target.value?.folder],()=>{++epoch;catalog.value=undefined;documents.value={};originals.value={};file.value='';profile.value='';error.value='';operation.value=null;void refresh()})
-watch(scope,()=>{file.value='';search.value=''})
-async function poll(){if(document.hidden||disposed||busy.value)return;await refresh();const doc=current.value,t=target.value,request=epoch;if(!doc||!t||dirty.value.some(d=>d.file===doc.file))return;try{const next=await clientConfigsRead(t.id,t.folder,doc.file);if(request===epoch&&next.hash!==doc.hash&&!dirty.value.some(d=>d.file===doc.file)){documents.value[doc.file]=next;originals.value[doc.file]=JSON.stringify(next)}}catch(e){if(request===epoch)error.value=errText(e)}}
+watch(scope,()=>{file.value='';search.value='';fileSearch.value='';void openDefault()})
+async function poll(){if(document.hidden||disposed||busy.value||loading.value)return;await refresh();const doc=current.value,t=target.value,request=epoch;if(!doc||!t||dirty.value.some(d=>d.file===doc.file))return;try{const next=await clientConfigsRead(t.id,t.folder,doc.file);if(request===epoch&&(next.hash!==doc.hash||JSON.stringify(next.root)!==JSON.stringify(doc.root))&&!dirty.value.some(d=>d.file===doc.file)){documents.value[doc.file]=next;originals.value[doc.file]=JSON.stringify(next)}}catch(e){if(request===epoch)error.value=errText(e)}}
 onMounted(()=>{void refresh();timer=setInterval(()=>void poll(),4000)})
 onUnmounted(()=>{disposed=true;++epoch;clearInterval(timer)})
 </script>
 <template>
   <section class="client-configs card">
-    <div class="config-heading"><div><h2>客户端参数管理</h2><p class="muted">SlimefunHelper、Meteor 附加模块、Baritone、好友与全配置</p></div><button class="btn btn-ghost btn-sm" :disabled="busy" @click="refresh">刷新</button></div>
+    <div class="config-heading"><div><h2>客户端参数管理</h2><p class="muted">SlimefunHelper、Meteor 附加模块、Baritone、好友与全配置</p></div><button class="btn btn-ghost btn-sm" :disabled="busy||loading" @click="reloadCurrent">刷新</button></div>
     <p v-if="!target" class="muted">请先选择游戏实例。</p>
     <template v-else>
       <p v-if="catalog" class="config-monitor"><span class="tag">{{ catalog.runtime.running?'客户端运行中':'客户端已关闭' }}</span><span>{{ catalog.runtime.connected?'桥接已连接':'桥接未连接' }}</span><span v-if="catalog.runtime.capabilities.length">已识别：{{ catalog.runtime.capabilities.join('、') }}</span></p>
@@ -64,20 +90,28 @@ onUnmounted(()=>{disposed=true;++epoch;clearInterval(timer)})
       <div class="config-toolbar"><SelectMenu v-model="scope" :options="[{value:'slimefunhelper',label:'SlimefunHelper'},{value:'meteor',label:'Meteor / Baritone'},{value:'all',label:'全部客户端配置'}]" :disabled="busy"/><button class="btn btn-ghost" :disabled="busy" @click="exportAll">导出全配置</button><button class="btn btn-ghost" :disabled="busy||dirty.length>0" @click="operation='import'">导入全配置</button></div>
       <div class="config-toolbar"><input v-model="profileName" class="input" placeholder="新配置名称" :disabled="busy"/><button class="btn btn-ghost" :disabled="busy||!profileName.trim()" @click="saveProfile">保存完整配置</button><SelectMenu v-model="profile" :options="(catalog?.profiles??[]).map(name=>({value:name,label:name}))" placeholder="选择已保存配置" :disabled="busy"/><button class="btn btn-gold" :disabled="busy||!profile||dirty.length>0" @click="switchHot('switch')">切换并热重载</button></div>
       <div class="config-toolbar"><input v-model="fileSearch" class="input" placeholder="筛选配置文件…" :disabled="busy"/><SelectMenu :model-value="file" :options="options" placeholder="选择配置文件" :disabled="busy" @change="openFile"/></div>
+      <div class="config-quick"><button v-for="f in options.filter(o=>o.value.startsWith('slimefunhelper/runtime/')||/^meteor-client\/(modules|friends|hud|config)\.nbt$/.test(o.value))" :key="f.value" class="btn btn-ghost btn-sm" :class="{chosen:file===f.value}" :disabled="busy" @click="openFile(f.value)">{{f.value.split('/').pop()?.replace(/\.(yml|nbt)$/,'')}}</button></div>
+      <p v-if="loading" class="muted">正在读取完整配置与当前模块参数…</p>
+      <details v-if="scope!=='meteor'&&catalog?.runtime.slimeModules?.length" class="config-modules"><summary>SlimefunHelper 当前已启用 {{catalog.runtime.slimeModules.filter(slimeActive).length}} / {{catalog.runtime.slimeModules.length}} 项功能</summary><div class="config-toolbar"><label><input v-model="slimeEnabledOnly" type="checkbox"/> 只看已启用</label></div><div class="slime-toggles"><div v-for="m in slimeModules" :key="m.file+m.path.join('.')" class="slime-toggle"><button class="btn btn-ghost btn-sm" :disabled="busy" @click="openFile(m.file)">{{m.title}}</button><label class="switch"><input type="checkbox" :aria-label="'启用 '+m.title" :checked="slimeActive(m)" :disabled="busy||loading" @change="toggleSlime(m,$event)"/><span class="switch-ui"/></label></div></div></details>
       <div v-if="current" class="config-editor">
         <button v-if="/^slimefunhelper\/config\/[^/]+\.nbt$/i.test(file)" class="btn btn-gold" :disabled="busy||dirty.length>0" @click="switchHot('snapshot')">应用此 SlimefunHelper 参数快照并热重载</button>
         <div class="config-toolbar"><input v-model="search" class="input" placeholder="搜索参数、模块、好友名称…"/><span class="muted">{{ current.format.toUpperCase() }}</span><button class="btn btn-ghost btn-sm" :disabled="busy||!dirty.length" @click="discard=true">取消全部修改</button><button class="btn btn-gold" :disabled="busy||!dirty.length" @click="operation='save'">保存 {{ dirty.length }} 个文件</button></div>
-        <ConfigNodeEditor :node="current.root" :label="current.file" :search="search" :disabled="busy" @change="error=''"/>
+        <p v-if="current.warning" class="config-error" role="alert">{{current.warning}}</p>
+        <ConfigFeaturesEditor v-if="featureFile&&!advanced" :root="current.root" :meteor="file==='meteor-client/modules.nbt'" :search="search" :modules="catalog?.runtime.modules" :disabled="busy" @change="error=''"/>
+        <ConfigNodeEditor v-else :key="file" :node="current.root" :label="current.file" :search="search" :disabled="busy" @change="error=''"/>
+        <button v-if="featureFile" class="btn btn-ghost btn-sm" @click="advanced=!advanced">{{advanced?'返回功能与参数':'查看完整配置结构'}}</button>
       </div>
-      <details v-if="scope!=='slimefunhelper' && catalog?.runtime.modules.length" class="config-modules"><summary>游戏已注册 {{ catalog.runtime.modules.length }} 个 Meteor 模块（包含附加插件）</summary><div v-for="m in modules.slice(0,100)" :key="m.addon+m.name" class="config-module"><strong>{{ m.title }}</strong><small class="muted">{{ m.name }} · {{ m.category }} · {{ m.addon }}</small></div><small v-if="modules.length>100" class="muted">显示前 100 项，请使用搜索缩小范围。</small></details>
+      <p v-if="scope!=='slimefunhelper'&&catalog?.runtime.modules.length" class="muted">游戏已注册 {{catalog.runtime.modules.length}} 个 Meteor 模块，已启用 {{catalog.runtime.modules.filter(m=>m.active).length}} 个（含附加插件）。</p>
       <p v-if="!options.length&&catalog" class="muted">当前实例没有匹配的配置文件。启动对应模组后会生成配置。</p>
       <p v-if="error" class="config-error" role="alert">{{ error }}</p>
     </template>
-    <Teleport to="body"><div v-if="operation" class="modal-mask"><div class="modal config-save-modal"><h3 class="modal-title">{{ operation==='switch'?'切换完整配置':operation==='import'?'导入完整配置':'保存参数修改' }}</h3><p>{{ operation==='save'?'选择本次修改的生效方式。': '完整配置包含当前范围的模块、好友和 Baritone 等数据，应用前自动备份。' }}</p><button v-if="operation!=='save'" class="btn btn-gold" :disabled="busy" @click="run('hot')">切换参数并在游戏内热重载</button><button class="btn" :disabled="busy" @click="run('restart')">1. 关闭所选客户端实例并重启</button><button class="btn" :disabled="busy" @click="run('next-launch')">2. 保存改变，下次重启客户端后生效</button><button class="btn btn-ghost" :disabled="busy" @click="operation==='save'?discardEdits():operation=null">3. {{ operation==='save'?'取消本次所有修改':'取消本次操作' }}</button><p v-if="error" class="config-error" role="alert">{{ error }}</p><p v-if="busy" class="muted">正在处理，请等待客户端确认…</p></div></div></Teleport>
+    <Teleport to="body"><div v-if="operation" class="modal-mask"><div class="modal config-save-modal"><h3 class="modal-title">{{ operation==='switch'?'切换完整配置':operation==='import'?'导入完整配置':'保存参数修改' }}</h3><p>{{ operation==='save'?'选择本次修改的生效方式。': '完整配置包含当前范围的模块、好友和 Baritone 等数据，应用前自动备份。' }}</p><button class="btn btn-gold" :disabled="busy" @click="run('hot')">立即保存并在游戏内热重载</button><button class="btn" :disabled="busy" @click="run('restart')">1. 关闭所选客户端实例并重启</button><button class="btn" :disabled="busy" @click="run('next-launch')">2. 保存改变，下次重启客户端后生效</button><button class="btn btn-ghost" :disabled="busy" @click="operation==='save'?discardEdits():operation=null">3. {{ operation==='save'?'取消本次所有修改':'取消本次操作' }}</button><p v-if="error" class="config-error" role="alert">{{ error }}</p><p v-if="busy" class="muted">正在处理，请等待客户端确认…</p></div></div></Teleport>
     <ConfirmModal :open="discard" title="取消全部修改" message="将撤销此页面所有尚未保存的编辑。" confirm-text="撤销编辑" @confirm="discardEdits" @cancel="discard=false"/>
     <ConfirmModal :open="cancelPending" title="取消暂存修改" message="删除本实例下次启动生效的修改，保留当前游戏配置。" confirm-text="取消暂存" :busy="busy" :error="error" @confirm="discardPending" @cancel="cancelPending=false"/>
   </section>
 </template>
 <style scoped>
 .client-configs{padding:var(--card-pad);margin-top:16px}.config-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.config-heading h2{font-size:var(--text-lg);margin:0 0 8px}.config-heading p,.config-directory,.config-monitor{font-size:var(--text-sm)}.config-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}.config-toolbar>.input{flex:1;min-width:180px}.config-toolbar :deep(.select-root){flex:1;min-width:160px}.config-monitor{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.config-directory{overflow-wrap:anywhere}.config-pending{padding:10px;background:var(--hover);border-radius:var(--radius-sm);font-size:var(--text-sm)}.config-error{color:var(--danger);font-size:var(--text-sm);white-space:pre-wrap;overflow-wrap:anywhere}.config-modules{margin:16px 0;font-size:var(--text-sm)}.config-module{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--border)}.config-save-modal{display:flex;flex-direction:column;gap:12px;max-width:600px}.config-save-modal .btn{text-align:left}.config-save-modal p{font-size:var(--text-sm);line-height:1.7}
+.config-quick{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}.config-quick .chosen{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}.config-toolbar :deep(.select-menu-btn){flex:1;width:auto;min-width:200px}
+.slime-toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;max-height:360px;overflow:auto}.slime-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card-2)}.slime-toggle>.btn{text-align:left;white-space:normal}
 </style>

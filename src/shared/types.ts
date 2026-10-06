@@ -372,6 +372,7 @@ export interface Settings {
   /** Fit the launcher to available desktop space only when explicitly enabled. */
   uiWindowAutoFit?: boolean
   /** Explicit reduction is additive to the operating system preference; absent means follow system. */
+  playerSkinLogo?: boolean
   reduceMotion?: boolean
   visualDesign?: import('./visualDesign').VisualDesign
   gameDir: string

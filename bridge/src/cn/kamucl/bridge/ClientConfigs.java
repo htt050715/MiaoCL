@@ -61,14 +61,35 @@ final class ClientConfigs {
         return new ArrayList<>(((Map<?,?>)map).values());
     }
     static Map<String,Object> manifest() throws Exception {
-        List<String> capabilities=new ArrayList<>(); List<Map<String,Object>> modules=new ArrayList<>();
-        if (loaded("me.matl114.managers.config.Config")) capabilities.add("slimefunhelper");
+        List<String> capabilities=new ArrayList<>(); List<Map<String,Object>> modules=new ArrayList<>(),slimeModules=new ArrayList<>();
+        if (loaded("me.matl114.managers.config.Config")) {
+            capabilities.add("slimefunhelper");
+            Path root=FabricLoader.getInstance().getGameDir().toAbsolutePath().normalize();
+            for(Object group:(Collection<?>)invoke(Class.forName("me.matl114.hacks.modules.HackModules"),"getModuleGroups")) {
+                for(Object module:(Collection<?>)invoke(group,"getModules")) {
+                    java.util.stream.Stream<?> entries=(java.util.stream.Stream<?>)invoke(module,"getModuleEntries");
+                    for(Object entry:entries.toList()) {
+                        File file=(File)invoke(get(entry,"config"),"getFile");
+                        if(file==null||!file.toPath().toAbsolutePath().normalize().startsWith(root))continue;
+                        String relative=root.relativize(file.toPath().toAbsolutePath().normalize()).toString().replace('\\','/');
+                        String[] path=(String[])invoke(entry,"getPath");
+                        String title=String.join(" / ",path);
+                        try {
+                            Object text=invoke(entry,"getDisplay");
+                            String getter=FabricLoader.getInstance().getMappingResolver().mapMethodName("intermediary","net.minecraft.class_2561","method_10851","()Ljava/lang/String;");
+                            title=String.valueOf(invoke(text,getter));
+                        }catch(ReflectiveOperationException ignored){}
+                        slimeModules.add(Map.of("name",String.valueOf(invoke(module,"getName")),"title",title,"file",relative,"path",Arrays.asList(path),"active",invoke(entry,"getActiveState")));
+                    }
+                }
+            }
+        }
         if (loaded("meteordevelopment.meteorclient.systems.Systems")) {
             capabilities.add("meteor");
             Object registry=invoke(Class.forName("meteordevelopment.meteorclient.systems.modules.Modules"),"get");
             for (Object module:(Collection<?>)invoke(registry,"getAll")) {
                 String category=String.valueOf(get(get(module,"category"),"name"));
-                modules.add(Map.of("name",String.valueOf(get(module,"name")),"title",String.valueOf(get(module,"title")),"category",category,"addon",module.getClass().getPackageName()));
+                modules.add(Map.of("name",String.valueOf(get(module,"name")),"title",String.valueOf(get(module,"title")),"category",category,"addon",module.getClass().getPackageName(),"active",invoke(module,"isActive")));
             }
         }
         if (loaded("baritone.api.BaritoneAPI")) capabilities.add("baritone");
@@ -77,7 +98,7 @@ final class ClientConfigs {
             var metadata=entry.getProvider().getMetadata();
             addons.add(Map.of("id",metadata.getId(),"name",metadata.getName(),"version",metadata.getVersion().getFriendlyString()));
         });
-        return Map.of("ok",true,"capabilities",capabilities,"modules",modules,"addons",addons);
+        return Map.of("ok",true,"capabilities",capabilities,"modules",modules,"slimeModules",slimeModules,"addons",addons);
     }
     static void flush() throws Exception {
         if (loaded("meteordevelopment.meteorclient.systems.Systems")) invoke(Class.forName("meteordevelopment.meteorclient.systems.Systems"),"save");

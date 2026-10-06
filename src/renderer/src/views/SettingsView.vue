@@ -214,7 +214,7 @@ function confirmRollback() {
   store.updatePrompt = { release, rollback: true }
 }
 function releaseSummary(body: string): string {
-  const first = (body || '').split(/\r?\n/).map((s) => s.replace(/^(?:#+|[-*])\s*/, '').trim()).filter(s => s && !/^KAMUCL\s+v?[\d.]+$/i.test(s))[0] ?? ''
+  const first = (body || '').split(/\r?\n/).map((s) => s.replace(/^(?:#+|[-*])\s*/, '').trim()).filter(s => s && !/^MiaoCL\s+v?[\d.]+$/i.test(s))[0] ?? ''
   return first.length > 60 ? first.slice(0, 60) + '…' : first
 }
 function releaseDate(value: string): string {
@@ -775,6 +775,7 @@ async function onRemovePlugin(p: PluginInfo) {
         <div><h3 class="group-title">UI 窗口自适应</h3><p class="muted">默认关闭。开启后按当前屏幕的可用区域调整窗口，并在较小窗口内适当缩小界面。适用于 1366 × 768 等小屏幕；不修改显示器分辨率、图片或游戏画质。</p><p class="muted">手动缩放仍可使用，关闭后恢复手动缩放比例。</p></div>
         <label class="switch"><input type="checkbox" aria-label="UI 窗口自适应" :checked="store.settings.uiWindowAutoFit === true" :disabled="windowFitBusy" @change="changeWindowFit" /><span class="switch-ui" /></label>
       </div>
+    <div v-if="store.settings && category === 'appearance'" class="card group group-inline"><div><h3 class="group-title">左上角玩家皮肤小人</h3><p class="muted">显示当前账号的皮肤，默认关闭。</p></div><label class="switch"><input type="checkbox" :checked="store.settings.playerSkinLogo === true" @change="save({ playerSkinLogo: ($event.target as HTMLInputElement).checked })"/><span class="switch-ui"/></label></div>
     <div data-ui="SettingsView:0683ad7389b1" v-if="store.settings && category === 'appearance'" class="card group group-inline setting-target" data-section="motion" tabindex="-1"><div><h3 class="group-title">减少动态效果</h3><p data-ui="SettingsView:53f72432b671" class="muted">停止装饰动画与自动轮播，缩短过渡。系统开启减少动态效果时也会自动生效。</p><p v-if="systemReduced" class="muted" role="status">当前系统已关闭动画：启动时显示完整头像，皮肤保持站姿。{{ systemMotionHelp }}</p></div><label class="switch"><input data-ui="SettingsView:35ef39b7e9bc" type="checkbox" aria-label="减少动态效果" :checked="store.settings.reduceMotion === true" @change="save({ reduceMotion: ($event.target as HTMLInputElement).checked })"/><span data-ui="SettingsView:4490d3e5d395" class="switch-ui"/></label></div>
 
       <div v-show="category === 'downloads'" data-section="installation" data-ui="download-location:settings" class="card group directory-setting">
@@ -1087,7 +1088,7 @@ async function onRemovePlugin(p: PluginInfo) {
         <div class="card group group-inline">
           <div>
             <h3 class="group-title">启动后关闭启动器</h3>
-            <p class="muted group-hint">游戏成功启动后自动退出 KAMUCL</p>
+            <p class="muted group-hint">游戏成功启动后自动退出 MiaoCL</p>
           </div>
           <label class="switch">
             <input data-ui="SettingsView:f2f1ffcd2e84"
@@ -1180,7 +1181,7 @@ async function onRemovePlugin(p: PluginInfo) {
           </div>
           </details>
           <p class="muted group-hint">
-            更新包发布在 GitHub Releases；下载较慢时可到 KAMUCL 内测群（{{ store.settings.qqGroupNumber?.trim() || QQ_GROUP_NUMBER }}）获取，群内文件与 GitHub 版本一致。
+            更新包发布在 GitHub Releases；下载较慢时可到 MiaoCL 内测群（{{ store.settings.qqGroupNumber?.trim() || QQ_GROUP_NUMBER }}）获取，群内文件与 GitHub 版本一致。
           </p>
         </div>
       </details>

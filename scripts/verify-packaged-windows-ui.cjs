@@ -17,6 +17,21 @@ if (mode === 'software') {
 }
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'KAMUCL packaged UI '))
 const games = path.join(root, 'games'); fs.mkdirSync(games)
+const instance=path.join(games,'versions','config-test');fs.mkdirSync(instance,{recursive:true})
+fs.writeFileSync(path.join(instance,'config-test.json'),JSON.stringify({id:'config-test',_gameDir:true,type:'release',mainClass:'net.minecraft.client.main.Main',libraries:[],assets:'test',arguments:{game:[],jvm:[]}}))
+fs.writeFileSync(path.join(instance,'config-test.jar'),Buffer.alloc(0))
+const slime=path.join(instance,'slimefunhelper','runtime');fs.mkdirSync(slime,{recursive:true})
+fs.writeFileSync(path.join(slime,'combat.yml'),'attack:\n  enabled: false\n  speed: 2\n  prediction: \'nbt:predictargument:{history:5,ticks:2.0d}\'\n')
+const meteor=path.join(instance,'meteor-client');fs.mkdirSync(meteor)
+const str=s=>{const b=Buffer.from(s),h=Buffer.alloc(2);h.writeUInt16BE(b.length);return Buffer.concat([h,b])}
+const named=(type,key,value)=>Buffer.concat([Buffer.from([type]),str(key),value])
+const compound=children=>Buffer.concat([...children,Buffer.from([0])])
+const number=Buffer.alloc(8);number.writeDoubleBE(2)
+const setting=compound([named(8,'name',str('speed')),named(6,'value',number)])
+const list=items=>{const h=Buffer.alloc(5);h[0]=10;h.writeInt32BE(items.length,1);return Buffer.concat([h,...items])}
+const group=compound([named(8,'name',str('General')),named(9,'settings',list([setting]))])
+const moduleTag=compound([named(8,'name',str('fixture-fly')),named(1,'active',Buffer.from([0])),named(10,'settings',compound([named(9,'groups',list([group]))]))])
+fs.writeFileSync(path.join(meteor,'modules.nbt'),named(10,'',compound([named(9,'modules',list([moduleTag]))])))
 app.setPath('userData', root)
 app.setPath('appData', root)
 fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ theme: 'transparent', autoUpdate: false,
@@ -30,6 +45,7 @@ app.whenReady().then(() => {
 app.on('browser-window-created', (_event, window) => {
   window.show = () => {}; window.showInactive = () => {}
   if (window.getTitle() !== productName) return
+  window.webContents.on('console-message',(_event,level,message)=>{if(level>=2)console.log('Renderer',message)})
   window.webContents.once('did-finish-load', async () => {
     try {
       let ui
@@ -44,6 +60,8 @@ app.on('browser-window-created', (_event, window) => {
       assert(ui.images.every(i => i.ok), 'Local image failed to load')
       const settings = await window.webContents.executeJavaScript("window.kamucl.invoke('settings:get')")
       assert.equal(settings.gameDir, games, 'IPC used another profile')
+      assert.equal(settings.playerSkinLogo,false,'Player skin logo must be disabled by default')
+      assert(ui.text.includes('爱来自HTT~')&&ui.text.includes('梦珞大人举世无双！'),'Custom branding missing')
       const koffi = packedRequire('koffi')
       assert.equal(koffi.load('kernel32.dll').func('uint32_t __stdcall GetCurrentProcessId()')(), process.pid)
       assert.equal(typeof packedRequire('undici').fetch, 'function')
@@ -78,7 +96,38 @@ app.on('browser-window-created', (_event, window) => {
           await wait(100)
         }
         assert(panel.includes('客户端参数管理') && panel.includes('SlimefunHelper') && panel.includes('Baritone'), 'Client config panel did not mount')
+        const js=async code=>{try{return await window.webContents.executeJavaScript(code)}catch(e){console.log('Failed UI action',code,'Panel',await window.webContents.executeJavaScript("document.querySelector('.client-configs')?.innerText"));throw e}}
+        for(let i=0;i<70;i++){if(await js("!!document.querySelector('.feature-parameters input[type=number]')"))break;await wait(150)}
+        const opened=await js("!!document.querySelector('.feature-parameters input[type=number]')")
+        if(!opened){console.log('Config diagnostics',await js("document.querySelector('.client-configs').innerText"));fs.writeFileSync('out/config-ui-failure.png',(await window.webContents.capturePage()).toPNG())}
+        assert(opened,'Slimefun settings did not open automatically')
+        await js("(()=>{const input=document.querySelector('.feature-parameters input[type=number]');input.value='7';input.dispatchEvent(new Event('input',{bubbles:true}));})()")
+        await wait(150)
+        await js("[...document.querySelectorAll('.config-editor button')].find(b=>b.textContent.includes('保存 1 个文件')).click()")
+        await wait(150)
+        assert(await js("document.querySelector('.config-save-modal').innerText.includes('立即保存并在游戏内热重载')"),'Hot save is unavailable')
+        await js("[...document.querySelectorAll('.config-save-modal button')].find(b=>b.textContent.includes('立即保存')).click()")
+        for(let i=0;i<70;i++){if(fs.readFileSync(path.join(slime,'combat.yml'),'utf8').includes('speed: 7'))break;await wait(150)}
+        assert.match(fs.readFileSync(path.join(slime,'combat.yml'),'utf8'),/speed: 7/)
+        for(let i=0;i<70;i++){if(await js("!document.querySelector('.config-save-modal')&&!document.querySelector('.client-configs .config-toolbar .select-menu-btn').disabled"))break;await wait(100)}
+        await js("document.querySelector('.client-configs .config-toolbar .select-menu-btn').click()")
+        await wait(100);await js("[...document.querySelectorAll('.select-menu-option')].find(b=>b.textContent.includes('Meteor / Baritone')).click()")
+        for(let i=0;i<70;i++){if(await js("!!document.querySelector('.feature-title .switch input')"))break;await wait(150)}
+        assert(await js("document.querySelector('.feature-parameters').innerText.includes('speed')"),'Meteor concrete parameter missing')
+        await js("(()=>{const input=document.querySelector('.feature-title .switch input');input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}));const n=document.querySelector('.feature-parameters input[type=number]');n.value='9';n.dispatchEvent(new Event('input',{bubbles:true}));})()")
+        await wait(150);await js("[...document.querySelectorAll('.config-editor button')].find(b=>b.textContent.includes('保存 1 个文件')).click()")
+        await wait(100);await js("[...document.querySelectorAll('.config-save-modal button')].find(b=>b.textContent.includes('立即保存')).click()")
+        for(let i=0;i<70;i++){if(await js("!document.querySelector('.config-save-modal')&&!document.querySelector('.client-configs .config-toolbar .select-menu-btn').disabled"))break;await wait(100)}
+        const doc=await js(`window.kamucl.invoke('client-configs:read','config-test',${JSON.stringify(games)},'meteor-client/modules.nbt')`)
+        const fields=doc.root.children.find(c=>c.key==='modules').node.children[0].node.children
+        assert.equal(fields.find(c=>c.key==='active').node.value,1,'Module switch did not persist')
+        const savedSettings=fields.find(c=>c.key==='settings').node.children.find(c=>c.key==='groups').node.children[0].node.children.find(c=>c.key==='settings').node.children[0].node.children
+        assert.equal(savedSettings.find(c=>c.key==='value').node.value,9,'Concrete module parameter did not persist')
+        for(let i=0;i<70;i++){if(await js("!!document.querySelector('.feature-parameters input[type=number]')&&!document.querySelector('.client-configs').innerText.includes('正在读取完整配置')"))break;await wait(100)}
+        assert(await js("document.querySelector('.feature-parameters input[type=number]').value==='9'"),'Meteor parameter did not reload')
+        report.ui.configEditing={slimefun:true,meteor:true,hotSaveChoice:true,moduleToggle:true,liveGameHotReload:false}
         report.ui.clientConfigsPanel = true
+        await js("document.querySelector('.feature-parameters').scrollIntoView({block:'center'})")
         fs.writeFileSync(path.join(root, 'client-configs.png'), (await window.webContents.capturePage()).toPNG())
       }
       fs.writeFileSync(`out/windows-ui-${version}-${mode}.json`, JSON.stringify(report, null, 2))

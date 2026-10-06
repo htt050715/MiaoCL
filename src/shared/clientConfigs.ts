@@ -12,6 +12,7 @@ export interface ConfigNode {
   max?: number
 }
 export interface ConfigDocument {
+  warning?: string
   file: string
   hash: string
   format: 'nbt' | 'yaml' | 'json' | 'baritone' | 'text' | 'binary'
@@ -25,7 +26,8 @@ export interface ConfigRuntime {
   owned: boolean
   connected: boolean
   capabilities: string[]
-  modules: { name: string; title: string; addon: string; category: string }[]
+  modules: { name: string; title: string; addon: string; category: string; active?: boolean }[]
+  slimeModules?: {name:string;title:string;file:string;path:string[];active:boolean}[]
   reason?: string
 }
 export interface ConfigCatalog {

@@ -41,7 +41,7 @@ export async function installBridge(versionId: string): Promise<{ ok: boolean; a
     if (fs.lstatSync(modsDir).isSymbolicLink()) throw Error('mods 目录不能是链接')
     const existing = fs.readdirSync(modsDir).filter(name => name.endsWith('.jar') && parseModFile(path.join(modsDir,name)).id === 'kamucl-bridge')
     if (existing.length > 1) throw Error('检测到多个桥接 MOD，请先整理重复安装')
-    const next = fs.readFileSync(src), destination = path.join(modsDir,existing[0] ?? 'miaocl-config-bridge-1.1.0.jar')
+    const next = fs.readFileSync(src), destination = path.join(modsDir,existing[0] ?? 'miaocl-config-bridge-1.1.1.jar')
     if (fs.existsSync(destination)) {
       if (fs.lstatSync(destination).isSymbolicLink()) throw Error('桥接 MOD 不能是链接')
       const old = fs.readFileSync(destination)
@@ -129,7 +129,7 @@ const call = callBridge
 /** 连接状态：发现文件存在且 ping 通（游戏退出后端口关闭，ping 失败即断开） */
 export async function bridgeStatus(versionId: string): Promise<BridgeStatus> {
   const discovery = readDiscovery(versionId)
-  if (!discovery) return { connected: false, reason: '未发现桥接服务：请使用内置 KAMUCL Bridge 的实例启动游戏' }
+  if (!discovery) return { connected: false, reason: '未发现桥接服务：请使用内置 MiaoCL Bridge 的实例启动游戏' }
   // 发现文件可能来自上次异常退出的残留：校验进程仍在运行
   try {
     process.kill(discovery.pid, 0)

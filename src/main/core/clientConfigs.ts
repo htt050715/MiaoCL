@@ -92,6 +92,7 @@ export class ClientConfigManager {
     if (!bytes) throw Error('配置文件不存在')
     return decodeConfig(file,bytes,hash(bytes))
   }
+  hasPending(version: string): boolean { return this.pending(version).length > 0 }
   private changes(version: string, docs: ConfigDocument[]): ConfigMutation[] {
     if (!Array.isArray(docs) || docs.length > 10000) throw Error('配置数量无效')
     const pending = this.pending(version)

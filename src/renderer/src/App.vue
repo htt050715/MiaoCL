@@ -72,7 +72,7 @@ const GameView = defineAsyncComponent(() => import('./views/GameView.vue'))
 const ModsView = defineAsyncComponent(() => import('./views/ModsView.vue'))
 const RecordingsView = defineAsyncComponent(() => import('./views/RecordingsView.vue'))
 const ProjectionsView = defineAsyncComponent(() => import('./views/ProjectionsView.vue'))
-const MascotStage = defineAsyncComponent(() => import('./components/MascotStage.vue'))
+const PlayerSkinLogo = defineAsyncComponent(() => import('./components/PlayerSkinLogo.vue'))
 const mascotOpen = ref(false)
 const mascotReady = ref(false)
 const mascotBusy = ref(false)
@@ -1247,8 +1247,8 @@ onUnmounted(() => {
       <!-- Logo 区 -->
       <div data-ui="App:fc5fc8ba7e96" class="logo-area">
         <div class="brand-slot">
-        <button class="brand-avatar" :class="{'avatar-open':mascotOpen&&mascotReady,'avatar-preparing':mascotOpen&&!mascotReady}" :tabindex="mascotOpen?-1:0" aria-label="打开卡慕互动彩蛋" :aria-expanded="mascotOpen" :aria-busy="mascotOpen&&!mascotReady" :title="mascotOpen&&!mascotReady?'正在准备卡慕…':'打开卡慕互动彩蛋'" @click="openMascots"><img data-ui="App:0f39bd9dbfd2" class="brand-head" :src="brandHead" alt="KaMuaMua 的 Minecraft 头像" /></button>
-        <MascotStage v-if="mascotOpen" ref="mascotRef" :focus-on-ready="mascotKeyboard" @ready="mascotReady=true" @activity="mascotBusy=$event" @render-mode="mascotSoftware=$event" @close="closeMascots"/>
+        <img v-if="!store.settings?.playerSkinLogo" class="brand-head" :src="brandHead" alt="MiaoCL 头像"/>
+        <PlayerSkinLogo v-if="store.settings?.playerSkinLogo"/>
         </div>
         <div data-ui="App:7494cda29e47" class="logo-text">
           <span data-ui="App:c396a9ff34cb" class="logo-name">MiaoCL</span>
