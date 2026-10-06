@@ -20,7 +20,13 @@ function readCommittedSource(root) {
     return { path: file, oid: match[3] }
   })
   if (!rows.length) throw Error('No committed source files')
-  const batch = execFileSync('git', ['cat-file', '--batch'], { cwd: root, input: rows.map(r => r.oid).join('\n') + '\n', maxBuffer: 96 * 1024 * 1024 })
+  // Keep each subprocess bounded as tracked assets and validation evidence grow.
+  const chunks = []
+  for (let index = 0; index < rows.length; index += 32) {
+    chunks.push(execFileSync('git', ['cat-file', '--batch'], { cwd: root,
+      input: rows.slice(index, index + 32).map(r => r.oid).join('\n') + '\n', maxBuffer: 96 * 1024 * 1024 }))
+  }
+  const batch = Buffer.concat(chunks)
   let offset = 0
   const files = rows.map(row => {
     const end = batch.indexOf(10, offset)
