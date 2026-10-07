@@ -868,6 +868,8 @@ export const IPC = {
   modsApplyUpdates: 'mods:applyUpdates', // (versionId: string, items: ModUpdateTarget[]) => { fileName, ok, error? }[]
   // 默认按键（启动时同步进实例 options.txt）
   keysGetDefault: 'keys:getDefault', // () => Record<string, string>
+  keysLiveSnapshot: 'keys:liveSnapshot',
+  keysLiveSet: 'keys:liveSet',
   gameOptionsGet: 'gameOptions:get',
   gameOptionsSet: 'gameOptions:set',
   keysSetDefault: 'keys:setDefault', // (id: string, bind: string) => Record<string, string>

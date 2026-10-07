@@ -24,6 +24,7 @@ export type ViewName =
   | 'keys'
   | 'bridge'
   | 'client-configs'
+  | 'mod-configs'
   | 'skins'
   | 'community'
   | 'servers'
@@ -76,6 +77,7 @@ export const store = reactive({
   selectedAccount: null as Account | null,
   installed: [] as InstalledVersion[],
   currentView: 'home' as ViewName,
+  modConfigImportRequested: false,
   settingsSection: '' as '' | 'java' | 'memory' | 'downloads',
   /** 顶栏搜索关键字（游戏版本页版本列表联动过滤） */
   searchKeyword: '',

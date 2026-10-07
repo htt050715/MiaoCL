@@ -43,6 +43,8 @@ public final class BridgeServer {
         server.createContext("/kamucl/v1/client-configs/sync", exchange -> respond(exchange, token, () -> clientConfigsSync()));
         server.createContext("/kamucl/v1/client-configs/apply", exchange -> respond(exchange, token, () -> clientConfigsApply(exchange)));
         server.createContext("/kamucl/v1/client-configs/full-modules", exchange -> respond(exchange, token, () -> clientConfigsFullModules()));
+        server.createContext("/kamucl/v1/keybindings/snapshot", exchange -> respond(exchange, token, () -> liveKeys(exchange,false)));
+        server.createContext("/kamucl/v1/keybindings/set", exchange -> respond(exchange, token, () -> liveKeys(exchange,true)));
         // HttpServer's dispatcher inherits daemon status from the thread calling
         // start(). Starting on Fabric's render thread kept the JVM alive after
         // Minecraft returned from main (Client shutdown from post-main watchdog).
@@ -180,6 +182,19 @@ public final class BridgeServer {
         try { return ClientConfigs.mainThread(() -> ClientConfigs.apply(body)); } catch (Exception e) { return Map.of("ok",false,"error",String.valueOf(e.getCause()!=null?e.getCause().getMessage():e.getMessage())); }
     }
 
+    private static Map<String,Object> liveKeys(HttpExchange exchange,boolean write) throws IOException {
+        if (!(write?"POST":"GET").equals(exchange.getRequestMethod())) return Map.of("ok",false,"error","请求方法不支持");
+        Map<?,?> body=Map.of();
+        if(write){
+            byte[] bytes=exchange.getRequestBody().readNBytes(16385);
+            if(bytes.length>16384)throw new IOException("键位请求过大");
+            Object parsed=GSON.fromJson(new String(bytes,StandardCharsets.UTF_8),Object.class);
+            if(!(parsed instanceof Map<?,?>))throw new IOException("键位请求无效");body=(Map<?,?>)parsed;
+        }
+        final Map<?,?> request=body;
+        try{return ClientConfigs.mainThread(() -> write?LiveKeybindings.set(request):LiveKeybindings.snapshot());}
+        catch(Exception error){Throwable cause=error.getCause()!=null?error.getCause():error;return Map.of("ok",false,"error",String.valueOf(cause.getMessage()));}
+    }
     private interface Handler { Map<String, Object> handle() throws IOException; }
 
     private static void respond(HttpExchange exchange, String expectedToken, Handler handler) throws IOException {

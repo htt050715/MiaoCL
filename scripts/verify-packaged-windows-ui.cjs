@@ -1,7 +1,7 @@
 // Run through verify-compact-windows-ui.cjs to test a copy of the final runtime.
 // A packaged executable with resources/app.asar ignores the script argument.
 // All settings, games, log output and windows belong to the test.
-const { app, session } = require('electron')
+const { app, session, dialog } = require('electron')
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os')
 const assert = require('node:assert/strict'), { createRequire } = require('node:module')
 const { Worker } = require('node:worker_threads')
@@ -16,6 +16,8 @@ if (mode === 'software') {
   app.commandLine.appendSwitch('enable-unsafe-swiftshader')
 }
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'KAMUCL packaged UI '))
+dialog.showSaveDialog=async()=>({canceled:false,filePath:path.join(root,'mod-configs.zip')})
+dialog.showOpenDialog=async()=>({canceled:false,filePaths:[path.join(root,'mod-configs.zip')]})
 const games = path.join(root, 'games'); fs.mkdirSync(games)
 const instance=path.join(games,'versions','config-test');fs.mkdirSync(instance,{recursive:true})
 fs.writeFileSync(path.join(instance,'config-test.json'),JSON.stringify({id:'config-test',_gameDir:true,type:'release',mainClass:'net.minecraft.client.main.Main',libraries:[],assets:'test',arguments:{game:[],jvm:[]}}))
@@ -38,7 +40,13 @@ const moduleTag=compound([named(8,'name',str('flight')),named(1,'active',Buffer.
 const second=compound([named(8,'name',str('kill-aura')),named(1,'active',Buffer.from([0])),named(10,'settings',compound([named(9,'groups',list([]))]))])
 fs.writeFileSync(path.join(meteor,'modules.nbt'),named(10,'',compound([named(9,'modules',list([moduleTag,second]))])))
 const fixtureMods=path.join(instance,'mods');fs.mkdirSync(fixtureMods)
+const configDir=path.join(instance,'config');fs.mkdirSync(configDir)
+fs.writeFileSync(path.join(configDir,'menudemo.json5'),"// fixture comments\n{enabled:false,speed:2,render:{scale:1.5},names:['a','b'],}\n")
+fs.writeFileSync(path.join(configDir,'menudemo.properties'),'# keep this comment\nenabled=false\nspeed=2\n')
+fs.mkdirSync(path.join(instance,'defaultconfigs'));fs.writeFileSync(path.join(instance,'defaultconfigs/menudemo.toml'),'enabled = false\n[render]\nscale = 1.5\n')
 const translationZip=new (require('adm-zip'))()
+translationZip.addFile('fabric.mod.json',Buffer.from(JSON.stringify({schemaVersion:1,id:'menudemo',name:'菜单测试模组',version:'1.0',environment:'client'})))
+translationZip.addFile('assets/menudemo/lang/zh_cn.json',Buffer.from(JSON.stringify({'text.autoconfig.menudemo.option.enabled':'启用演示','text.autoconfig.menudemo.option.speed':'运行速度','text.autoconfig.menudemo.option.render':'渲染设置','text.autoconfig.menudemo.option.render.scale':'显示缩放'})))
 translationZip.addFile('assets/yalu/lang/zh_cn.json',Buffer.from(JSON.stringify({'Module.Meteor.flight':'飞行','Module.Meteor.kill-aura':'杀戮光环','Setting.Meteor.speed':'速度','Setting.Meteor.speed.Description':'调整飞行速度','Setting.Meteor.mode':'模式','Setting.Meteor.vertical-speed-match':'垂直速度匹配','Setting.Meteor.fixture-color':'示例颜色','Setting.Meteor.fixture-list':'示例列表','Enum.Meteor.Mode.Abilities':'能力飞行','Enum.Meteor.Mode.Velocity':'速度飞行','Category.Meteor.Movement':'移动','Category.Meteor.Combat':'战斗'})))
 translationZip.writeZip(path.join(fixtureMods,'i18n-fixture.jar'))
 app.setPath('userData', root)
@@ -223,6 +231,89 @@ app.on('browser-window-created', (_event, window) => {
           fs.writeFileSync(path.join(root,'client-configs-narrow.png'),(await window.webContents.capturePage()).toPNG())
         }
       }
+      await window.webContents.executeJavaScript("document.querySelector('.sidebar').querySelectorAll('button').forEach(b=>{if(b.innerText.includes('MOD 面板'))b.click()})")
+      for(let i=0;i<60;i++){if(await window.webContents.executeJavaScript("!!document.querySelector('[data-open-mod-configs]')"))break;await wait(100)}
+      await window.webContents.executeJavaScript("document.querySelector('[data-open-mod-configs]').click()")
+      for(let i=0;i<100;i++){if(await window.webContents.executeJavaScript("[...document.querySelectorAll('.mod-menu-list .feature-row')].some(b=>b.innerText.includes('菜单测试模组'))"))break;await wait(100)}
+      await window.webContents.executeJavaScript("[...document.querySelectorAll('.mod-menu-list .feature-row')].find(b=>b.innerText.includes('菜单测试模组')).click()")
+      for(let i=0;i<60;i++){if(await window.webContents.executeJavaScript("!!document.querySelector('.mod-menu-parameters .click-setting input[type=number]')"))break;await wait(100)}
+      assert(await window.webContents.executeJavaScript("document.querySelector('.mod-menu-parameters').innerText.includes('启用演示')"),'Mod Menu settings translation missing')
+      await window.webContents.executeJavaScript("(()=>{const rows=[...document.querySelectorAll('.mod-menu-parameters .click-setting')];rows.find(r=>r.innerText.includes('启用演示')).querySelector('input[type=checkbox]').click();const speed=rows.find(r=>r.innerText.includes('运行速度')).querySelector('input[type=number]');speed.value='7';speed.dispatchEvent(new Event('input',{bubbles:true}))})()")
+      await window.webContents.executeJavaScript("[...document.querySelectorAll('.mod-menu-editbar button')].find(b=>b.innerText.includes('保存')).click()")
+      await wait(100)
+      await window.webContents.executeJavaScript("[...document.querySelectorAll('.mod-config-save button')].find(b=>b.innerText.includes('立即保存')).click()")
+      for(let i=0;i<70;i++){if(!await window.webContents.executeJavaScript("!!document.querySelector('.mod-config-save')"))break;await wait(100)}
+      const JSON5=require('json5'),saved=JSON5.parse(fs.readFileSync(path.join(configDir,'menudemo.json5'),'utf8'))
+      assert.equal(saved.enabled,true);assert.equal(saved.speed,7);assert.equal(saved.render.scale,1.5)
+      await window.webContents.executeJavaScript("[...document.querySelectorAll('.mod-menu-toolbar button')].find(b=>b.innerText.includes('导出全部')).click()")
+      for(let i=0;i<80&&!fs.existsSync(path.join(root,'mod-configs.zip'));i++)await wait(100)
+      const configZip=new Zip(path.join(root,'mod-configs.zip'));assert(configZip.getEntry('config/menudemo.properties'));assert(configZip.getEntry('defaultconfigs/menudemo.toml'));assert(configZip.getEntry('meteor-client/modules.nbt'));assert(!configZip.getEntry('mods/i18n-fixture.jar'))
+      fs.writeFileSync(path.join(configDir,'menudemo.json5'),'{enabled:false,speed:1}')
+      fs.writeFileSync(path.join(configDir,'another-mod.json'),'{"keep":true}')
+      await wait(200)
+      await window.webContents.executeJavaScript("[...document.querySelectorAll('.mod-menu-toolbar button')].find(b=>b.innerText.includes('导入全部')).click()")
+      await wait(100)
+      await window.webContents.executeJavaScript("[...document.querySelectorAll('.mod-config-save button')].find(b=>b.innerText.includes('立即保存')).click()")
+      for(let i=0;i<80;i++){if(!await window.webContents.executeJavaScript("!!document.querySelector('.mod-config-save')"))break;await wait(100)}
+      assert.equal(JSON5.parse(fs.readFileSync(path.join(configDir,'menudemo.json5'),'utf8')).speed,7);assert(fs.existsSync(path.join(configDir,'another-mod.json')))
+      for(let i=0;i<70;i++){if(await window.webContents.executeJavaScript("!!document.querySelector('.mod-menu-parameters .click-setting input[type=number]')"))break;await wait(100)}
+      assert.equal(await window.webContents.executeJavaScript("document.documentElement.scrollWidth>innerWidth"),false,'Mod Menu horizontal overflow')
+      if(process.env.MIAOCL_UI_VISIBLE==='1'){window.setSize(1360,860);await window.webContents.executeJavaScript("document.querySelector('.content').scrollTop=0");await wait(500);fs.writeFileSync(path.join(root,'mod-config-menu.png'),(await window.webContents.capturePage()).toPNG());window.setSize(1024,768);await wait(500);assert.equal(await window.webContents.executeJavaScript("document.documentElement.scrollWidth>innerWidth"),false,'Narrow Mod Menu overflow');fs.writeFileSync(path.join(root,'mod-config-menu-narrow.png'),(await window.webContents.capturePage()).toPNG())}
+      report.ui.modConfigMenu={installedMods:true,localizedSettings:true,typedEditing:true,saved:true,fullExport:true,fullImport:true,preservesUnlistedFiles:true}
+      // Isolated runtime contract: the separate JVM test exercises the real Java adapters.
+      const binding=keys=>({keys,modifiers:0,release:false,passThrough:false})
+      const liveState={ok:true,session:'fixture-session',warnings:[],items:[
+        {id:'key_key.forward',kind:'vanilla',label:'前进',category:'移动',binding:binding(['key.keyboard.w']),defaultBinding:binding(['key.keyboard.w'])},
+        {id:'key_mod.menu',kind:'vanilla',label:'模组菜单',category:'模组',binding:binding(['key.keyboard.r']),defaultBinding:binding([])},
+        {id:'meteor:flight',kind:'meteor',module:'flight',label:'Flight',category:'彗星 · Movement',binding:binding([]),defaultBinding:binding([])},
+        {id:'slime:hotkey',kind:'slime',label:'史莱姆快捷键',category:'史莱姆 · combat.yml',path:['auto-attack','hotkey'],binding:binding([]),defaultBinding:binding([])}
+      ]}
+      let writes=0,reads=0
+      const bridge=require('node:http').createServer(async(req,res)=>{
+        if(req.headers['x-kamucl-token']!=='fixture-authentication-token'&&!req.url.endsWith('/ping')){res.writeHead(401);res.end('{}');return}
+        let response={ok:true}
+        if(req.url.endsWith('/snapshot')){reads++;response=liveState}
+        if(req.url.endsWith('/set')){
+          let data='';for await(const chunk of req)data+=chunk
+          const body=JSON.parse(data),item=liveState.items.find(i=>i.id===body.id)
+          if(body.session!==liveState.session||JSON.stringify(body.base)!==JSON.stringify(item.binding))response={ok:false,error:'游戏内已修改此按键，请按新键位重新设置'}
+          else{item.binding=body.binding;writes++;response=liveState;fs.writeFileSync(path.join(root,'fixture-live-keys.json'),JSON.stringify(liveState))}
+        }
+        res.setHeader('Content-Type','application/json');res.end(JSON.stringify(response))
+      })
+      await new Promise(resolve=>bridge.listen(0,'127.0.0.1',resolve))
+      fs.writeFileSync(path.join(instance,'.kamucl-bridge.json'),JSON.stringify({protocol:1,port:bridge.address().port,token:'fixture-authentication-token',modVersion:'1.1.4',pid:process.pid,startedAt:Date.now()}))
+      await window.webContents.executeJavaScript("document.querySelector('[data-nav=keys]').click()")
+      for(let i=0;i<60;i++){if(await window.webContents.executeJavaScript("!!document.querySelector('[data-live-keys-toggle]')"))break;await wait(100)}
+      await window.webContents.executeJavaScript("[...document.querySelectorAll('.cfg-sections button')].find(b=>b.innerText.includes('按键配置')).click();document.querySelector('[data-live-keys-toggle]').click()")
+      const keyRow=id=>`.live-key-row[data-live-key="${id}"]`
+      for(let i=0;i<70;i++){if(await window.webContents.executeJavaScript(`!!document.querySelector('${keyRow('key_key.forward')}')`))break;await wait(100)}
+      assert(await window.webContents.executeJavaScript("document.querySelector('[data-live-keys]').innerText.includes('双向同步中')"),'Live key panel did not connect')
+      await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').click()`)
+      window.webContents.sendInputEvent({type:'keyDown',keyCode:'R'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'R'})
+      for(let i=0;i<50&&writes<1;i++)await wait(100)
+      assert.equal(writes,1);assert.deepEqual(liveState.items[0].binding.keys,['key.keyboard.r'])
+      assert(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').innerText==='R'`),'Authoritative key reply not displayed')
+      liveState.items[0].binding=binding(['key.keyboard.x']) // Game-side menu changes do not send launcher writes.
+      for(let i=0;i<50;i++){if(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').innerText==='X'`))break;await wait(100)}
+      assert(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').innerText==='X'`),'Game menu did not sync back');assert.equal(writes,1)
+      await window.webContents.executeJavaScript(`document.querySelector('${keyRow('meteor:flight')} .cfg-bind').click()`)
+      window.webContents.sendInputEvent({type:'keyDown',keyCode:'R',modifiers:['control']});window.webContents.sendInputEvent({type:'keyUp',keyCode:'R',modifiers:['control']})
+      for(let i=0;i<50&&writes<2;i++)await wait(100)
+      assert.equal(liveState.items[2].binding.modifiers,2)
+      await window.webContents.executeJavaScript(`document.querySelector('${keyRow('slime:hotkey')} input[type=checkbox]').click()`)
+      for(let i=0;i<50&&writes<3;i++)await wait(100)
+      assert.equal(liveState.items[3].binding.release,true)
+      // Preserve capture baseline even while a newer game snapshot arrives.
+      await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').click()`)
+      liveState.items[0].binding=binding(['key.keyboard.w'])
+      window.webContents.sendInputEvent({type:'keyDown',keyCode:'R'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'R'})
+      await wait(1200);assert.equal(writes,3);assert.deepEqual(liveState.items[0].binding.keys,['key.keyboard.w'])
+      if(process.env.MIAOCL_UI_VISIBLE==='1'){window.setSize(1360,860);await window.webContents.executeJavaScript("document.querySelector('.content').scrollTop=0");await wait(800);fs.writeFileSync(path.join(root,'live-keys.png'),(await window.webContents.capturePage()).toPNG());window.setSize(1024,768);await wait(500);assert.equal(await window.webContents.executeJavaScript("document.documentElement.scrollWidth>innerWidth"),false,'Narrow live keys overflow');fs.writeFileSync(path.join(root,'live-keys-narrow.png'),(await window.webContents.capturePage()).toPNG())}
+      await new Promise(resolve=>bridge.close(resolve))
+      for(let i=0;i<50;i++){if(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').disabled`))break;await wait(100)}
+      assert(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').disabled`),'Disconnected keys still editable')
+      report.ui.liveKeys={registeredModKeys:true,launcherToGame:true,gameToLauncher:true,meteorModifiers:true,slimeFlags:true,conflict:true,disconnect:true,reads,writes}
       fs.writeFileSync(`out/windows-ui-${version}-${mode}.json`, JSON.stringify(report, null, 2))
       console.log('PASS packaged Windows UI', JSON.stringify(report)); clearTimeout(deadline); app.exit(0)
     } catch (error) { console.error(error); clearTimeout(deadline); app.exit(1) }

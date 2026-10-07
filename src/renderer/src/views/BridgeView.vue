@@ -5,7 +5,7 @@
  * 这里自动生成开关、滑块、输入框或下拉选项；以 MOD 返回的实际结果为准。
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { bridgeInstall, bridgeInstalled, bridgeManifest, bridgeReset, bridgeSet, bridgeStatus, errText } from '../api'
+import { bridgeInstall, bridgeInstalled, bridgeManifest, bridgeReset, bridgeSet, bridgeStatus, clientConfigsExport, errText } from '../api'
 import { refreshInstalled, store, toast, selectedInstance, displayVersionName as versionLabel } from '../store'
 import SelectMenu from '../components/SelectMenu.vue'
 import type { BridgeParam, BridgeStatus } from '@shared/types'
@@ -17,6 +17,9 @@ const status = ref<BridgeStatus | null>(null)
 const params = ref<BridgeParam[]>([])
 const loadingManifest = ref(false)
 const search = ref('')
+const exportingConfigs=ref(false)
+async function exportModConfigs(){const v=currentVersion.value;if(!v||exportingConfigs.value)return;exportingConfigs.value=true;try{if(await clientConfigsExport(v.id,v.folder,'mods'))toast('全部模组配置已导出','success')}catch(e){toast('导出失败：'+errText(e),'error')}finally{exportingConfigs.value=false}}
+function importModConfigs(){store.modConfigImportRequested=true;store.currentView='mod-configs'}
 const itemError = ref<Record<string, string>>({})
 const noticeShown = ref<Record<string, string>>({})
 let pollTimer: ReturnType<typeof setInterval> | undefined
@@ -186,7 +189,7 @@ function isModified(p: BridgeParam): boolean {
   <div data-ui="BridgeView:cfdb5a4d90a2" class="page bridge-page">
     <div data-ui="BridgeView:db609f258d77" class="page-head">
       <h1 data-ui="BridgeView:83a0b6c9508f" class="page-title">MOD 面板</h1>
-      <p data-ui="BridgeView:bb8e2f3a040b" class="page-sub">游戏运行期间实时读取与修改 MOD 参数；以 MOD 返回的实际结果为准</p>
+      <p data-ui="BridgeView:bb8e2f3a040b" class="page-sub">按模组管理配置；支持的实时参数通过游戏桥接修改</p>
     </div>
 
     <div data-ui="BridgeView:b3265d72c149" class="card bridge-status" :class="{ connected: status?.connected }">
@@ -205,6 +208,7 @@ function isModified(p: BridgeParam): boolean {
       </div>
     </div>
     <!-- 参数区 -->
+    <div class="card config-workspace-entry mod-config-entry"><div><strong>模组配置菜单</strong><p class="muted">查看已安装模组与配置文件，按分类可视化修改设置。一键导入、导出当前实例的全部模组配置。</p></div><div class="mod-config-entry-actions"><button class="btn btn-gold" data-open-mod-configs :disabled="!currentVersion" @click="store.currentView='mod-configs'">调整模组配置</button><button class="btn btn-ghost" :disabled="!currentVersion||exportingConfigs" @click="exportModConfigs">{{exportingConfigs?'导出中…':'导出全部配置'}}</button><button class="btn btn-ghost" :disabled="!currentVersion" @click="importModConfigs">导入全部配置</button></div></div>
     <div class="card config-workspace-entry"><div><strong>客户端参数工作区</strong><p class="muted">SlimefunHelper、Meteor 模块、好友与 Baritone 配置。按分类查看、编辑、保存和切换完整配置。</p></div><button class="btn btn-gold" data-open-client-configs @click="store.currentView='client-configs'">调整客户端参数</button></div>
     <template v-if="status?.connected">
       <div data-ui="BridgeView:e2062fc19818" v-if="params.length" class="bridge-toolbar">
@@ -288,6 +292,7 @@ function isModified(p: BridgeParam): boolean {
 
 <style scoped>
 .bridge-page { max-width: 860px; }
+.mod-config-entry-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);justify-content:flex-end}.mod-config-entry{align-items:flex-start}@media(max-width:780px){.mod-config-entry{flex-direction:column}.mod-config-entry-actions{justify-content:flex-start}}
 .config-workspace-entry{display:flex;align-items:center;gap:20px;padding:var(--card-pad);margin-top:16px}.config-workspace-entry>div{flex:1;min-width:0}.config-workspace-entry p{font-size:var(--text-sm);line-height:1.6;margin:8px 0 0}.config-workspace-entry>.btn{flex:none}
 .bridge-status { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--card-pad); flex-wrap: wrap; }
 .bridge-status.connected { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }

@@ -5,6 +5,7 @@
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import DefaultGameOptions from '../components/DefaultGameOptions.vue'
+import LiveKeysPanel from '../components/LiveKeysPanel.vue'
 import { errText, getDefaultKeys, resetDefaultKeys, setDefaultKey, getDefaultResourcePacks, importDefaultResourcePacks, pickDefaultResourcePacks, removeDefaultResourcePack, moveDefaultResourcePack, setDefaultResourcePackEnabled } from '../api'
 import type { DefaultResourcePack } from '@shared/types'
 import { store, toast } from '../store'
@@ -16,6 +17,7 @@ const section = ref<'game' | 'keys' | 'packs'>('game')
 function selectSection(value: 'game' | 'keys' | 'packs') { stopCapture(); section.value = value }
 const loading = ref(true)
 const keySearch = ref('')
+const liveMode = ref(false)
 const capturing = ref('')
 const resourcePacks = ref<DefaultResourcePack[]>([])
 const packsBusy = ref(false)
@@ -149,7 +151,7 @@ onUnmounted(stopCapture)
 
     <nav data-ui="KeysView:c0a728e450f2" class="cfg-sections" aria-label="默认配置分类">
       <button data-ui="KeysView:384d69817c73" :class="{active:section === 'game'}" @click="selectSection('game')"><strong>游戏选项</strong><small>画面、控制与辅助功能</small></button>
-      <button data-ui="KeysView:732b450bc0f6" :class="{active:section === 'keys'}" @click="selectSection('keys')"><strong>按键配置</strong><small>{{ keyModifiedCount }} 项自定义绑定</small></button>
+      <button data-ui="KeysView:732b450bc0f6" :class="{active:section === 'keys'}" @click="selectSection('keys')"><strong>按键配置</strong><small>{{liveMode?'同步游戏当前绑定':`${keyModifiedCount} 项自定义绑定`}}</small></button>
       <button data-ui="KeysView:d7d636f03de6" :class="{active:section === 'packs'}" @click="selectSection('packs')"><strong>默认材质包</strong><small>{{ resourcePacks.length }} 个材质包</small></button>
     </nav>
     <DefaultGameOptions v-show="section === 'game'" @section="selectSection" />
@@ -175,22 +177,25 @@ onUnmounted(stopCapture)
     <div data-ui="KeysView:58a64397f47a" v-else v-show="section === 'keys'" class="card cfg-col">
       <div class="cfg-col-head">
         <div>
-          <h3 class="group-title">按键配置</h3>
+          <h3 class="group-title">{{liveMode?'游戏实时键位':'默认按键配置'}}</h3>
           <p data-ui="KeysView:0fec7e4d603b" class="muted group-hint" style="margin: 2px 0 0">对应游戏内「选项 → 控制 → 按键控制」</p>
         </div>
         <div data-ui="KeysView:076aac6059fa" class="cfg-head-actions">
-          <label data-ui="KeysView:d24483e908e0" class="cfg-sync" title="启动任意版本时，用下方默认按键覆盖该实例 options.txt 的 key_* 项">
+          <label class="cfg-sync"><span class="cfg-sync-text">游戏实时双向同步</span><span class="switch"><input data-live-keys-toggle type="checkbox" :checked="liveMode" @change="stopCapture();liveMode=($event.target as HTMLInputElement).checked"/><span class="switch-ui"/></span></label>
+          <label v-if="!liveMode" data-ui="KeysView:d24483e908e0" class="cfg-sync" title="启动任意版本时，用下方默认按键覆盖该实例 options.txt 的 key_* 项">
             <span data-ui="KeysView:3c5373f12848" class="cfg-sync-text">按键设置同步</span>
             <span class="switch">
               <input data-ui="KeysView:8da5b395e36b" type="checkbox" :checked="keySync" @change="toggleKeySync(($event.target as HTMLInputElement).checked)" />
               <span class="switch-ui"></span>
             </span>
           </label>
-          <button data-ui="KeysView:051ad2a1db23" class="btn btn-ghost btn-sm" :disabled="!keyModifiedCount" @click="resetAllKeys">全部恢复默认</button>
+          <button v-if="!liveMode" data-ui="KeysView:051ad2a1db23" class="btn btn-ghost btn-sm" :disabled="!keyModifiedCount" @click="resetAllKeys">全部恢复默认</button>
         </div>
       </div>
-      <input data-ui="KeysView:7bb183320b84" v-model="keySearch" class="input cfg-search" placeholder="搜索按键名称…" />
-      <div data-ui="KeysView:a8f22f80d5d3" class="cfg-scroll">
+      <LiveKeysPanel v-if="liveMode" :active="section==='keys'"/>
+      <p v-if="!liveMode" class="muted group-hint">默认绑定在开启同步后于启动时应用；开启「游戏实时双向同步」可调整正在运行的所选实例。</p>
+      <input v-if="!liveMode" data-ui="KeysView:7bb183320b84" v-model="keySearch" class="input cfg-search" placeholder="搜索按键名称…" />
+      <div v-if="!liveMode" data-ui="KeysView:a8f22f80d5d3" class="cfg-scroll">
         <div data-ui="KeysView:5e83994d56a1" v-for="group in keyGrouped" :key="group.category" class="cfg-group">
           <h4 data-ui="KeysView:21f659d3f704" class="cfg-cat">{{ group.category }}</h4>
           <div data-ui="KeysView:577547417d1b" v-for="item in group.items" :key="item.id" class="cfg-row">

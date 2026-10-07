@@ -21,6 +21,7 @@ const props = defineProps<{
   min?: number
   max?: number
   disabled?: boolean
+  generic?: boolean
   slimefun?: boolean
   labelPath?: string[]
 }>()
@@ -33,8 +34,8 @@ const rangeMin=computed(()=>props.sliderMin??props.min),rangeMax=computed(()=>pr
 const hasRange = computed(() => !props.noSlider && numeric.value && Number.isFinite(rangeMin.value) && Number.isFinite(rangeMax.value) && Number(rangeMax.value)>Number(rangeMin.value))
 const meteorCompound=computed(()=>!props.slimefun&&!!props.node.children&&(['r','g','b','a'].every(k=>configChild(props.node,k))||props.kind==='KeybindSetting'&&!!(configChild(props.node,'value')??configChild(props.node,'key'))||['x','y','z'].every(k=>configChild(props.node,k))||props.node.type==='list'&&(props.node.elementType===8||!!props.node.children.length&&props.node.children.every(c=>c.node.type==='string'))))
 const text = computed(() => String(props.node.value ?? ''))
-const isKeybind = computed(() => /^hotkey:/i.test(text.value) || /按键|快捷键|keybind|hotkey/i.test(props.label))
-const isColor = computed(() => /color|颜色/i.test(props.label) || /wrapcolor/i.test(text.value))
+const isKeybind = computed(() => !props.generic && (/^hotkey:/i.test(text.value) || /按键|快捷键|keybind|hotkey/i.test(props.label)))
+const isColor = computed(() => props.generic ? props.node.type==='string' && /^#[\da-f]{6}$/i.test(text.value) : /color|颜色/i.test(props.label) || /wrapcolor/i.test(text.value))
 const color = computed(() => { const match = text.value.match(/#([0-9a-f]{6})/i); return match ? `#${match[1]}` : '#ffffff' })
 function update(value: string | number | boolean) {
   if(numeric.value&&(!Number.isFinite(Number(value))||props.min!==undefined&&Number(value)<props.min||props.max!==undefined&&Number(value)>props.max))return

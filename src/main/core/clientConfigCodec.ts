@@ -2,6 +2,7 @@ import zlib from 'node:zlib'
 import { parseDocument, stringify } from 'yaml'
 import { readTypedNbt, writeTypedNbt, type NbtTag, type NbtType } from './typedNbt'
 import type { ConfigDocument, ConfigNode } from '../../shared/clientConfigs'
+import { parseModObject, encodeModObject, propertiesNode, encodeProperties, checkModValue } from './modConfigCodec'
 
 const TYPES = ['end','byte','short','int','long','float','double','byte-array','string','list','compound','int-array','long-array']
 export function nbtNode(tag: NbtTag): ConfigNode {
@@ -54,6 +55,13 @@ export function nodeValue(node: ConfigNode, depth = 0): any {
   return node.value
 }
 export function decodeConfig(file: string, bytes: Buffer, hash: string): ConfigDocument {
+  try{return decodeStructuredConfig(file,bytes,hash)}catch(error){
+    if(!/^(config|defaultconfigs)\//.test(file))throw error
+    const text=bytes.toString('utf8'),binary=bytes.includes(0)||!Buffer.from(text).equals(bytes)
+    return {file,hash,format:binary?'binary':'text',root:{type:binary?'binary':'string',value:binary?bytes.toString('base64'):text},warning:'此文件暂不支持可视化解析，已保留原始内容：'+String(error)}
+  }
+}
+function decodeStructuredConfig(file: string, bytes: Buffer, hash: string): ConfigDocument {
   const doc: ConfigDocument = { file, hash, format: 'text', root: {type:'string',value:''} }
   if (/\.(nbt|dat)$/i.test(file)) {
     const parsed = readTypedNbt(bytes)
@@ -61,22 +69,34 @@ export function decodeConfig(file: string, bytes: Buffer, hash: string): ConfigD
   } else if (/\.ya?ml$/i.test(file)) {
     const yaml = parseDocument(bytes.toString('utf8'), { uniqueKeys: true })
     if (yaml.errors.length) throw Error(yaml.errors.map(e => e.message).join('\n'))
-    doc.format = 'yaml'; doc.root = valueNode(yaml.toJS({maxAliasCount:100}))
-  } else if (/\.json$/i.test(file)) { doc.format = 'json'; doc.root = valueNode(JSON.parse(bytes.toString('utf8'))) }
+    doc.format = 'yaml'; const value=yaml.toJS({maxAliasCount:100});if(/^(config|defaultconfigs)\//.test(file))checkModValue(value);doc.root = valueNode(value)
+  } else if (/\.(json5|toml)$/i.test(file)) {
+    doc.format=/\.toml$/i.test(file)?'toml':'json5';doc.root=valueNode(parseModObject(doc.format,bytes.toString('utf8')))
+    doc.warning='保存修改会重新排版此文件，并移除格式注释；原文件会自动备份。'
+  } else if (/\.properties$/i.test(file)) {doc.format='properties';doc.root=propertiesNode(bytes.toString('utf8'))}
+  else if (/\.json$/i.test(file)) {
+    try{doc.format = 'json'; const value=JSON.parse(bytes.toString('utf8'));if(/^(config|defaultconfigs)\//.test(file))checkModValue(value);doc.root = valueNode(value)}catch(error){
+      if(!/^(config|defaultconfigs)\//.test(file))throw error
+      doc.format='json5';doc.root=valueNode(parseModObject('json5',bytes.toString('utf8')));doc.warning='此 JSON 文件包含扩展语法；保存修改会移除格式注释，原文件会自动备份。'
+    }
+  }
   else if (file === 'baritone/settings.txt') {
     doc.format = 'baritone'; const value = Object.create(null)
     for (const line of bytes.toString('utf8').split(/\r?\n/)) { const m = /^(\S+)\s+(.*)$/.exec(line); if (!m || line.startsWith('#')) continue; value[m[1]] = m[2] === 'true' ? true : m[2] === 'false' ? false : /^-?\d+(\.\d+)?$/.test(m[2]) ? Number(m[2]) : m[2] }
     doc.root = valueNode(value)
-  } else if (bytes.includes(0)) { doc.format = 'binary'; doc.root = {type:'binary',value:bytes.toString('base64')} }
+  } else if (bytes.includes(0)||!Buffer.from(bytes.toString('utf8')).equals(bytes)) { doc.format = 'binary'; doc.root = {type:'binary',value:bytes.toString('base64')} }
   else doc.root.value = bytes.toString('utf8')
   return doc
 }
 export function encodeConfig(doc: ConfigDocument, original?: Buffer): Buffer {
+  if(original&&/^(config|defaultconfigs)\//.test(doc.file)&&JSON.stringify(decodeConfig(doc.file,original,doc.hash).root)===JSON.stringify(doc.root))return original
+  if(doc.format==='properties')return encodeProperties(doc.root,original)
   if (doc.format === 'nbt') {
     const raw = writeTypedNbt(nodeNbt(doc.root), doc.name ?? '', false)
     return doc.compression === 'gzip' ? zlib.gzipSync(raw) : doc.compression === 'zlib' ? zlib.deflateSync(raw) : raw
   }
   const value = doc.format === 'text' ? doc.root.value : doc.format === 'binary' ? null : nodeValue(doc.root)
+  if(doc.format==='json5'||doc.format==='toml')return encodeModObject(doc,value,original)
   if (doc.format === 'json') return Buffer.from(JSON.stringify(value,null,2) + '\n')
   if (doc.format === 'yaml') {
     if (!original) return Buffer.from(stringify(value))

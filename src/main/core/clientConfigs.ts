@@ -16,10 +16,12 @@ export interface ConfigHooks {
 const MAX_FILE = 128 * 1024 * 1024, MAX_BUNDLE = 512 * 1024 * 1024
 const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
 const data = (content: string | null) => content === null ? null : Buffer.from(content,'base64')
-const scopeOf = (file: string): ConfigScope => file.startsWith('slimefunhelper/') ? 'slimefunhelper' : 'meteor'
+const scopeOf = (file: string): ConfigScope => file.startsWith('slimefunhelper/') ? 'slimefunhelper' : file.startsWith('meteor-client/') || file === 'baritone/settings.txt' ? 'meteor' : 'mods'
+const roots = (scope: ConfigScope) => scope === 'mods' ? ['config','defaultconfigs','slimefunhelper','meteor-client'] : scope === 'slimefunhelper' ? ['slimefunhelper'] : scope === 'meteor' ? ['meteor-client'] : ['slimefunhelper','meteor-client']
+const inScope = (file: string, scope: ConfigScope) => scope === 'mods' || scope === 'all' && scopeOf(file) !== 'mods' || scopeOf(file) === scope
 export function managedPath(directory: string, relative: string): string {
-  if (typeof relative !== 'string' || relative.includes('\\') || relative.includes('\0') || relative.includes(':') || relative.startsWith('/') || relative.split('/').some(p => !p || p === '.' || p === '..')) throw Error('配置路径无效')
-  if (!relative.startsWith('slimefunhelper/') && !relative.startsWith('meteor-client/') && relative !== 'baritone/settings.txt') throw Error('文件不属于受管理的配置目录')
+  if (typeof relative !== 'string' || relative.includes('\\') || relative.includes('\0') || relative.includes(':') || relative.startsWith('/') || relative.split('/').some(p => !p || p === '.' || p === '..' || /[<>"|?*\x00-\x1f]/.test(p) || /[. ]$/.test(p) || /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(p))) throw Error('配置路径无效')
+  if (!['slimefunhelper/','meteor-client/','config/','defaultconfigs/'].some(root=>relative.startsWith(root)) && relative !== 'baritone/settings.txt') throw Error('文件不属于受管理的配置目录')
   const root = fs.realpathSync(directory)
   const target = path.resolve(root,...relative.split('/'))
   let probe = target
@@ -73,17 +75,20 @@ export class ClientConfigManager {
         }
       } else if (stat.isFile()) files.push({file:relative,size:stat.size,modified:stat.mtimeMs,scope:scopeOf(relative)})
     }
-    for (const root of scope === 'slimefunhelper' ? ['slimefunhelper'] : scope === 'meteor' ? ['meteor-client'] : ['slimefunhelper','meteor-client']) {
+    for (const root of roots(scope)) {
       const folder = path.join(directory,root)
-      if (fs.existsSync(folder)) for (const name of fs.readdirSync(folder)) if (!name.startsWith('.') && name !== 'backups' && !/\.(bak|tmp)(\.|$)/i.test(name)) walk(root + '/' + name)
+      if (fs.existsSync(folder)) {
+        if(fs.lstatSync(folder).isSymbolicLink())throw Error('配置目录不能是符号链接：'+root)
+        for (const name of fs.readdirSync(folder)) if (!name.startsWith('.') && name !== 'backups' && !/\.(bak|tmp|backup|disabled)(\.|$)/i.test(name)) walk(root + '/' + name)
+      }
     }
     if (scope !== 'slimefunhelper') walk('baritone/settings.txt')
     return files.sort((a,b) => a.file.localeCompare(b.file))
   }
-  async catalog(version: string): Promise<ConfigCatalog> {
+  async catalog(version: string, scope: ConfigScope = 'all'): Promise<ConfigCatalog> {
     const profiles = path.join(this.state(version),'profiles')
-    const files = this.inventory(version)
-    for (const change of this.pending(version)) if (change.content !== null && !files.some(f => f.file === change.file)) files.push({file:change.file,size:data(change.content)!.length,modified:0,scope:scopeOf(change.file)})
+    const files = this.inventory(version,scope)
+    for (const change of this.pending(version)) if (inScope(change.file,scope) && change.content !== null && !files.some(f => f.file === change.file)) files.push({file:change.file,size:data(change.content)!.length,modified:0,scope:scopeOf(change.file)})
     return {directory:this.dir(version),files,profiles:fs.existsSync(profiles) ? fs.readdirSync(profiles).filter(n => n.endsWith('.zip')).map(n => n.slice(0,-4)) : [],pending:this.pending(version).length > 0,runtime:await this.hooks.runtime(version)}
   }
   read(version: string, file: string): ConfigDocument {
@@ -119,7 +124,8 @@ export class ClientConfigManager {
       }
       total += data(file.content)?.length ?? 0
       if (total > MAX_BUNDLE) throw Error('配置包超过 512 MB')
-      if (file.content !== null && /\.(nbt|dat|json|ya?ml)$/i.test(file.file)) decodeConfig(file.file,data(file.content)!,'')
+      // General MOD files are backed up byte-for-byte, including opaque formats.
+      if (scopeOf(file.file)!=='mods' && file.content!==null && /\.(nbt|dat|json|ya?ml)$/i.test(file.file))decodeConfig(file.file,data(file.content)!,'')
     }
     return files
   }
@@ -174,6 +180,7 @@ export class ClientConfigManager {
       return {ok:true,message:'配置已保存，客户端已重新启动',backup}
     }
     if (runtime.running && mode === 'hot') {
+      if(files.some(f=>scopeOf(f.file)==='mods'))throw Error('普通模组未声明配置热重载接口，请选择下次启动生效或退出游戏后保存')
       if (!runtime.connected) throw Error('客户端未连接新版桥接服务，无法确认热重载')
       await this.hooks.hot(version,this.rebase(version,files))
       this.clearPending(version)
@@ -192,10 +199,10 @@ export class ClientConfigManager {
     })
   }
   exportBundle(version: string, scope: ConfigScope, destination: string) {
-    if (!['all','meteor','slimefunhelper'].includes(scope)) throw Error('配置范围无效')
+    if (!['all','meteor','slimefunhelper','mods'].includes(scope)) throw Error('配置范围无效')
     const zip = new AdmZip(); let total = 0
     const names = new Set(this.inventory(version,scope).map(f => f.file))
-    for (const p of this.pending(version)) if (scope === 'all' || scopeOf(p.file) === scope) names.add(p.file)
+    for (const p of this.pending(version)) if (inScope(p.file,scope)) names.add(p.file)
     const manifest: {file:string;hash:string}[] = []
     for (const name of names) { const bytes = this.effective(version,name); if (!bytes) continue; total += bytes.length; if (total > MAX_BUNDLE) throw Error('配置包超过 512 MB'); manifest.push({file:name,hash:hash(bytes)}); zip.addFile(name,bytes) }
     zip.addFile('miaocl-config.json',Buffer.from(JSON.stringify({version:1,scope,files:manifest},null,2)))
@@ -206,12 +213,13 @@ export class ClientConfigManager {
     if (fs.existsSync(destination)) throw Error('同名配置已存在，请使用新名称')
     this.exportBundle(version,scope,destination)
   }
-  private bundle(version: string, source: string): ConfigMutation[] {
+  private bundle(version: string, source: string, expectedScope?: ConfigScope): ConfigMutation[] {
     if (fs.statSync(source).size > MAX_BUNDLE) throw Error('配置包过大')
     const zip = new AdmZip(source), entry = zip.getEntry('miaocl-config.json')
     if (!entry || entry.header.size > 4 * 1024 * 1024) throw Error('缺少有效的 MiaoCL 配置清单')
     const manifest = JSON.parse(entry.getData().toString('utf8'))
-    if (manifest.version !== 1 || !['all','meteor','slimefunhelper'].includes(manifest.scope) || !Array.isArray(manifest.files) || manifest.files.length > 10000) throw Error('配置包清单无效')
+    if (manifest.version !== 1 || !['all','meteor','slimefunhelper','mods'].includes(manifest.scope) || !Array.isArray(manifest.files) || manifest.files.length > 10000) throw Error('配置包清单无效')
+    if(expectedScope && manifest.scope!==expectedScope)throw Error('请选择与当前页面范围匹配的配置包')
     const seen = new Set<string>(); let total = 0
     for (const entry of zip.getEntries()) {
       if (seen.has(entry.entryName)) throw Error('ZIP 路径重复'); seen.add(entry.entryName)
@@ -221,17 +229,19 @@ export class ClientConfigManager {
     }
     const files: ConfigMutation[] = manifest.files.map((item: any) => {
       managedPath(this.dir(version),item.file)
-      if (manifest.scope !== 'all' && scopeOf(item.file) !== manifest.scope) throw Error('配置包包含范围外文件')
+      if (!inScope(item.file,manifest.scope)) throw Error('配置包包含范围外文件')
       const entry = zip.getEntry(item.file); if (!entry) throw Error('配置包缺少文件：' + item.file)
       const bytes = entry.getData(); if (hash(bytes) !== item.hash) throw Error('配置包校验失败：' + item.file)
       return {file:item.file,base:readBytes(managedPath(this.dir(version),item.file))?.toString('base64') ?? null,content:bytes.toString('base64')}
     })
     if (seen.size !== files.length + 1) throw Error('配置包有未列入清单的文件')
     // Full profiles also remove files absent from the selected profile, with backups.
-    for (const current of this.inventory(version,manifest.scope)) if (!files.some(f => f.file === current.file)) files.push({file:current.file,base:readBytes(managedPath(this.dir(version),current.file))!.toString('base64'),content:null})
+    // General MOD bundles merge included files; installing another MOD must not
+    // make its configuration disappear when importing an older bundle.
+    if(manifest.scope!=='mods')for (const current of this.inventory(version,manifest.scope)) if (!files.some(f => f.file === current.file)) files.push({file:current.file,base:readBytes(managedPath(this.dir(version),current.file))!.toString('base64'),content:null})
     return this.validate(version,files)
   }
-  async importBundle(version: string, source: string, mode: ConfigSaveMode) { return this.locked(version,async () => this.apply(version,this.bundle(version,source),mode)) }
+  async importBundle(version: string, source: string, mode: ConfigSaveMode, expectedScope?: ConfigScope) { return this.locked(version,async () => this.apply(version,this.bundle(version,source,expectedScope),mode)) }
   async switchProfile(version: string, name: string, mode: ConfigSaveMode) { return this.importBundle(version,path.join(this.state(version),'profiles',profileName(name) + '.zip'),mode) }
   async activateSlimefunSnapshot(version: string, file: string, mode: ConfigSaveMode) {
     if (!/^slimefunhelper\/config\/[^/]+\.nbt$/i.test(file)) throw Error('请选择 SlimefunHelper 的 NBT 参数快照')

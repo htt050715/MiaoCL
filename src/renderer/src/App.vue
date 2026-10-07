@@ -88,6 +88,7 @@ const ShadersView = defineAsyncComponent(() => import('./views/ShadersView.vue')
 const KeysView = defineAsyncComponent(() => import('./views/KeysView.vue'))
 const BridgeView = defineAsyncComponent(() => import('./views/BridgeView.vue'))
 const ClientConfigsView = defineAsyncComponent(() => import('./views/ClientConfigsView.vue'))
+const ModConfigsView = defineAsyncComponent(() => import('./views/ModConfigsView.vue'))
 const SkinsView = defineAsyncComponent(() => import('./views/SkinsView.vue'))
 const CommunityView = defineAsyncComponent(() => import('./views/CommunityView.vue'))
 const ServersView = defineAsyncComponent(() => import('./views/ServersView.vue'))
@@ -112,6 +113,7 @@ const viewMap: Record<ViewName, Component> = {
   keys: KeysView,
   bridge: BridgeView,
   'client-configs': ClientConfigsView,
+  'mod-configs': ModConfigsView,
   skins: SkinsView,
   community: CommunityView,
   servers: ServersView,
@@ -212,7 +214,7 @@ const resourceSubItems: Array<{ key: ViewName; label: string; icon: string }> = 
 const resourceExpanded = ref(localStorage.getItem('kamucl.resourceExpanded') === 'true')
 watch(resourceExpanded, value => localStorage.setItem('kamucl.resourceExpanded', String(value)))
 const inResourceGroup = computed(() =>
-  ['mods', 'packs', 'shaders', 'bridge', 'client-configs', 'servers', 'recordings', 'projections'].includes(store.currentView)
+  ['mods', 'packs', 'shaders', 'bridge', 'client-configs', 'mod-configs', 'servers', 'recordings', 'projections'].includes(store.currentView)
 )
 
 // Route timings also respect the OS preference when Vue uses explicit timeout fallback.

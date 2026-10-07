@@ -1,4 +1,4 @@
-export type ConfigScope = 'slimefunhelper' | 'meteor' | 'all'
+export type ConfigScope = 'slimefunhelper' | 'meteor' | 'all' | 'mods'
 export type ConfigSaveMode = 'restart' | 'next-launch' | 'hot'
 export interface ConfigNode {
   type: string
@@ -21,7 +21,7 @@ export interface ConfigDocument {
   warning?: string
   file: string
   hash: string
-  format: 'nbt' | 'yaml' | 'json' | 'baritone' | 'text' | 'binary'
+  format: 'nbt' | 'yaml' | 'json' | 'json5' | 'toml' | 'properties' | 'baritone' | 'text' | 'binary'
   compression?: 'gzip' | 'zlib' | 'none'
   name?: string
   root: ConfigNode
@@ -37,6 +37,9 @@ export interface ConfigRuntime {
   reason?: string
 }
 export interface ConfigCatalog {
+  mods?: { id: string; name: string; version: string; files: string[]; disabled?: boolean; icon?: string; association?: string }[]
+  modTranslations?: Record<string, string>
+  warnings?: string[]
   meteorTranslations?: Record<string, string>
   directory: string
   files: ConfigFile[]

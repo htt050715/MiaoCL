@@ -14,6 +14,8 @@ import { IPC } from '../../shared/types'
 import type { ConfigDocument, ConfigRuntime, ConfigSaveMode, ConfigScope } from '../../shared/clientConfigs'
 import type {ConfigNode} from '../../shared/clientConfigs'
 import { readMeteorTranslations } from './meteorTranslations'
+import {populateModConfigCatalog} from './modConfigCatalog'
+import type {LiveKeysSnapshot} from '../../shared/liveKeybindings'
 
 const directory = (version: string) => { requireResourceVersion(version); return instanceDirectoryState(version,readVersionJson(version)).path }
 export const clientConfigs = new ClientConfigManager({
@@ -52,7 +54,7 @@ export function registerClientConfigsIpc(getWindow: () => BrowserWindow | null) 
     let warning:string|undefined
     if(flush)try{await sync(version)}catch(e){warning='游戏参数同步失败，已读取磁盘配置：'+String(e)}
     const doc=clientConfigs.read(version,file),discovery=readDiscovery(version)
-    doc.warning=warning
+    doc.warning=warning??doc.warning
     if(file!=='meteor-client/modules.nbt'||!discovery||!(await bridgeStatus(version)).connected||!/^1\.1\./.test(discovery.modVersion??'')||clientConfigs.hasPending(version))return doc
     try {
     const full=await callBridge(discovery,'client-configs/full-modules',undefined,60000) as {ok?:boolean;nbt?:string;error?:string;schema?:{module:string;group:string;name:string;title:string;description:string;options?:string[];min?:number;max?:number;kind?:string;sliderMin?:number;sliderMax?:number;noSlider?:boolean;enumType?:string;enumNames?:Record<string,string>}[]}
@@ -80,27 +82,41 @@ export function registerClientConfigsIpc(getWindow: () => BrowserWindow | null) 
     if (!bound) throw Error('游戏文件夹未绑定，请先在启动器中添加')
     return withGameFolder(bound.path,action)
   }
-  ipcMain.handle(IPC.clientConfigsCatalog,(_e,id:string,folder:string) => target(id,folder,async () => {
+  ipcMain.handle(IPC.clientConfigsCatalog,(_e,id:string,folder:string,scope?:ConfigScope) => target(id,folder,async () => {
+    if(scope==='mods')return populateModConfigCatalog(await clientConfigs.catalog(id,'mods'))
     const [catalog,translations]=await Promise.all([clientConfigs.catalog(id),readMeteorTranslations(directory(id))])
     catalog.meteorTranslations=translations;return catalog
   }))
   ipcMain.handle(IPC.clientConfigsRead,(_e,id:string,folder:string,file:string,flush?:boolean) => target(id,folder,() => read(id,file,flush===true)))
+  async function liveKeys(id:string,body?:unknown): Promise<LiveKeysSnapshot> {
+    const discovery=readDiscovery(id)
+    if(!discovery || !(await bridgeStatus(id)).connected) throw Error('请先启动所选实例，并安装或升级配置桥接 MOD（1.1.4 或更新版本）')
+    const version=discovery.modVersion.split('.').map(Number)
+    if(version.length!==3 || version.some(n=>!Number.isInteger(n)) || version[0]<1 || version[0]===1 && (version[1]<1 || version[1]===1 && version[2]<4)) throw Error('请退出游戏，在 MOD 面板升级配置桥接 MOD 后重新启动')
+    const request=body===undefined?undefined:{...(body as Record<string,unknown>),expiresAt:Date.now()+25000}
+    const result=await callBridge(discovery,body===undefined?'keybindings/snapshot':'keybindings/set',request,35000) as LiveKeysSnapshot & {ok?:boolean;error?:string}
+    if(!result.ok || typeof result.session!=='string' || !Array.isArray(result.items))throw Error(result.error??'客户端未确认键位，请重新读取')
+    result.meteorTranslations=await readMeteorTranslations(directory(id))
+    return result
+  }
+  ipcMain.handle(IPC.keysLiveSnapshot,(_e,id:string,folder:string) => target(id,folder,() => liveKeys(id)))
+  ipcMain.handle(IPC.keysLiveSet,(_e,id:string,folder:string,body:unknown) => target(id,folder,() => liveKeys(id,body)))
   ipcMain.handle(IPC.clientConfigsCommit,(_e,id:string,folder:string,docs:ConfigDocument[],mode:ConfigSaveMode) => target(id,folder,async () => clientConfigs.commit(id,docs,mode)))
   ipcMain.handle(IPC.clientConfigsCancelPending,(_e,id:string,folder:string) => target(id,folder,() => clientConfigs.clearPending(id)))
   ipcMain.handle(IPC.clientConfigsProfileSave,(_e,id:string,folder:string,scope:ConfigScope,name:string) => target(id,folder,async () => { await sync(id); return clientConfigs.saveProfile(id,scope,name) }))
   ipcMain.handle(IPC.clientConfigsProfileSwitch,(_e,id:string,folder:string,name:string,mode:ConfigSaveMode) => target(id,folder,() => clientConfigs.switchProfile(id,name,mode)))
   ipcMain.handle(IPC.clientConfigsActivateSnapshot,(_e,id:string,folder:string,file:string,mode:ConfigSaveMode) => target(id,folder,() => clientConfigs.activateSlimefunSnapshot(id,file,mode)))
   ipcMain.handle(IPC.clientConfigsExport,(_e,id:string,folder:string,scope:ConfigScope) => target(id,folder,async () => {
-    const window = getWindow(), options = {title:'导出全部客户端配置',defaultPath:`MiaoCL-${scope}.zip`,filters:[{name:'MiaoCL 配置包',extensions:['zip']}]}
+    const window = getWindow(), options = {title:scope==='mods'?'导出全部模组配置':'导出全部客户端配置',defaultPath:`MiaoCL-${scope}.zip`,filters:[{name:'MiaoCL 配置包',extensions:['zip']}]}
     const selected = window ? await dialog.showSaveDialog(window,options) : await dialog.showSaveDialog(options)
     if (selected.canceled || !selected.filePath) return false
     await sync(id); clientConfigs.exportBundle(id,scope,selected.filePath); return true
   }))
-  ipcMain.handle(IPC.clientConfigsImport,(_e,id:string,folder:string,mode:ConfigSaveMode) => target(id,folder,async () => {
+  ipcMain.handle(IPC.clientConfigsImport,(_e,id:string,folder:string,mode:ConfigSaveMode,scope?:ConfigScope) => target(id,folder,async () => {
     const window = getWindow(), options = {title:'导入全部客户端配置',properties:['openFile'] as ('openFile')[],filters:[{name:'MiaoCL 配置包',extensions:['zip']}]}
     const selected = window ? await dialog.showOpenDialog(window,options) : await dialog.showOpenDialog(options)
     if (selected.canceled || !selected.filePaths[0]) return null
-    return clientConfigs.importBundle(id,selected.filePaths[0],mode)
+    return clientConfigs.importBundle(id,selected.filePaths[0],mode,scope)
   }))
   setBeforeClientConfigLaunch(version => clientConfigs.beforeLaunch(version))
 }

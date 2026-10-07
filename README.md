@@ -100,7 +100,7 @@ npx electron-builder --win portable
 
 代码协作采用 Fork、功能分支和 Pull Request。提交标题、正文、类型前缀与检查要求见[提交规范](docs/CONTRIBUTING.md)；开发检查清单见[开发指南](docs/DEVELOPMENT.md#9-提交前检查清单)。
 
-### 🌉 构建 KAMUCL Bridge（可选）
+### 🌉 构建 MiaoCL 配置桥接
 
 Bridge 是给 Fabric 实例使用的本机桥接 MOD。需要 JDK 17+，并且本机已下载 Fabric Loader 与 Gson 依赖：
 
@@ -109,7 +109,15 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'
 node scripts/build-bridge.cjs
 ```
 
-成功后会生成 `bridge/dist/kamucl-bridge-1.0.0.jar`。构建脚本会从固定的 Fabric Maven 和 Maven Central 地址下载并校验编译依赖；未生成时主程序仍可构建，只是 Bridge 页面无法自动提供内置 MOD。
+成功后会生成 `bridge/dist/kamucl-bridge-1.1.4.jar`。构建脚本会从固定的 Fabric Maven 和 Maven Central 地址下载并校验编译依赖；启动器构建会检查并包含此 JAR。
+
+在 MOD 面板安装或升级配置桥接后，重新启动所选 Fabric 实例。进入「默认配置 → 按键配置」，开启「游戏实时双向同步」即可读取正在运行的游戏：改动即时应用并保存，游戏按键菜单、彗星 ClickGUI 和史莱姆菜单中的键位改动约一秒后同步回启动器。原版和注册到游戏按键表的 MOD 支持单键，彗星支持修饰键，史莱姆支持组合键、松开触发与原版操作选项。游戏断开时停止编辑；游戏内已改变的绑定会拒绝旧编辑，避免覆盖。
+
+「MOD 面板 → 模组配置菜单」提供按模组分类的配置编辑与全配置 ZIP 导入导出，包括 `config/`、`defaultconfigs/`、SlimefunHelper、Meteor 和 Baritone。普通模组没有通用热重载接口，可选择下次启动生效或重启所选实例；专用 SlimefunHelper/Meteor 参数页继续支持各自的热重载。JSON5/TOML 修改会重写配置且移除注释，保存前会备份原文件。
+
+可运行 `node scripts/verify-live-keybindings.cjs` 验证键位桥接的线程、双向读写、组合键、冲突和回滚，运行 `node scripts/verify-bridge-exit.cjs` 验证游戏退出后桥接释放。
+
+实时同步保存的是当前实例的游戏键位。全局「按键设置同步」仍会在启动时应用默认方案；如需保留实例自己的键位，请关闭启动时的默认覆盖。
 
 ## 🗂️ 项目地图
 

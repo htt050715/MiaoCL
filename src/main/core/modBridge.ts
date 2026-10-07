@@ -41,7 +41,7 @@ export async function installBridge(versionId: string): Promise<{ ok: boolean; a
     if (fs.lstatSync(modsDir).isSymbolicLink()) throw Error('mods 目录不能是链接')
     const existing = fs.readdirSync(modsDir).filter(name => name.endsWith('.jar') && parseModFile(path.join(modsDir,name)).id === 'kamucl-bridge')
     if (existing.length > 1) throw Error('检测到多个桥接 MOD，请先整理重复安装')
-    const next = fs.readFileSync(src), destination = path.join(modsDir,existing[0] ?? 'miaocl-config-bridge-1.1.3.jar')
+    const next = fs.readFileSync(src), destination = path.join(modsDir,existing[0] ?? 'miaocl-config-bridge-1.1.4.jar')
     if (fs.existsSync(destination)) {
       if (fs.lstatSync(destination).isSymbolicLink()) throw Error('桥接 MOD 不能是链接')
       const old = fs.readFileSync(destination)

@@ -29,7 +29,9 @@ export async function readMeteorTranslations(directory: string): Promise<MeteorT
   const folderStats = await Promise.all(present.filter(f => f.folder).map(async f => {
     try { const s = await fs.stat(path.join(f.file, 'assets/yalu/lang/zh_cn.json')); return s.mtimeMs } catch { return 0 }
   }))
-  const fingerprint = JSON.stringify([present, folderStats, options])
+  // Inventory order already includes selected packs. Keybinding writes change
+  // options.txt every time; they must not force every MOD JAR to be re-read.
+  const fingerprint = JSON.stringify([present, folderStats])
   if (cache.get(directory)?.fingerprint === fingerprint) return cache.get(directory)!.result
   const result = (async () => {
     const translations = Object.create(null) as MeteorTranslations
