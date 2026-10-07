@@ -38,7 +38,8 @@ test('launch combo lives in the banner and owns the launch chain (1.0.18 还原�
   assert.match(home, /class="launch-combo" data-edit="accent"/)
   assert.match(home, /class="launch-main"/)
   assert.match(home, /@click="onLaunchClick"/)
-  assert.match(home, /:disabled="launching \|\| !currentVersion"/)
+  assert.match(home, /:disabled="!currentVersion"/)
+  assert.match(home, /if \(launching\.value\) return '停止启动'/)
   assert.match(home, /class="launch-progress" :style="\{ width: percent \+ '%' \}"/)
   // 实例选择下拉挂在 combo 箭头
   assert.match(home, /ref="versionMenuButton" class="launch-arrow" title="选择游戏实例" @click="toggleVersionMenu"/)

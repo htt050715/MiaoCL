@@ -13,6 +13,7 @@ import {
   launchGame,
   restartGame,
   cancelGameRestart,
+  cancelGameLaunch,
   listJava,
   setVersionJava,
   openDir,
@@ -179,7 +180,7 @@ const percent = computed(() =>
   store.progress ? Math.round(progressMono(store.progress) * 100) : 0
 )
 const launchText = computed(() => {
-  if (launching.value) return store.progress?.text || '正在启动…'
+  if (launching.value) return '停止启动'
   return running.value ? '再次启动' : launchFailed.value ? '重新启动' : '开始游戏'
 })
 // ---------------- 快捷行悬浮浮块（跟随指针在三格间平滑滑动） ----------------
@@ -217,7 +218,8 @@ async function startVersion(id: string, createCommandWorld = false) {
   selectedId.value = id
   // 多开支持：仅「正在启动」的重复点击拦截；已有游戏运行中仍可再启动新实例
   if (launching.value) {
-    toast('正在启动中，请稍候', 'info')
+    const cancelled = await cancelGameLaunch(store.launchingVersionId || id, store.launchingFolder || currentVersion.value?.folder)
+    toast(cancelled ? '已取消本次启动' : '启动已进入客户端运行阶段，无法取消', cancelled ? 'success' : 'info')
     return
   }
   if (!store.selectedAccount) {
@@ -540,7 +542,7 @@ onUnmounted(() => {
               <button data-ui="HomeView:3fed5eb9ac9e"
                 class="launch-main"
                 :class="{ launching }"
-                :disabled="launching || !currentVersion"
+                :disabled="!currentVersion"
                 @click="onLaunchClick"
               >
                 <span data-ui="HomeView:62395e18f043" v-if="launching" class="launch-progress" :style="{ width: percent + '%' }"></span>

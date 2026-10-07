@@ -826,6 +826,7 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
         sendState({ status: 'error', text: errText(err), versionId, folder, launchId })
       }))
   })
+  ipcMain.handle(IPC.gameLaunchCancel, (_e, versionId?: string, folder?: string) => launch.cancelLaunch(versionId, folder))
   ipcMain.handle(IPC.gameKill, (_e, forceToken?: string) => launch.killGame(forceToken))
   ipcMain.handle(IPC.gameRestart, (_e, versionId: string, folder: string, forceToken?: string) => launch.restartGame(versionId, folder, forceToken))
   ipcMain.handle(IPC.gameRestartCancel, () => launch.cancelRestart())

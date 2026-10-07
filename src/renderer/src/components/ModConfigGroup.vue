@@ -3,11 +3,12 @@ import {computed} from 'vue'
 import { designIdentity } from '@shared/visualDesign'
 
 import type {ConfigNode} from '@shared/clientConfigs'
-import {modSettingLabel,modSettingDescription} from '@shared/modConfigs'
+import {modSettingLabel,modSettingDescription,modSettingKey} from '@shared/modConfigs'
 import ClickUiSetting from './ClickUiSetting.vue'
 const props=defineProps<{node:ConfigNode;path:string[];modId:string;translations:Record<string,string>;search:string;disabled?:boolean}>()
 const emit=defineEmits<{change:[]}>()
 function label(path:string[]){return modSettingLabel(props.translations,props.modId,path)}
+function description(path:string[]){const translated=modSettingDescription(props.translations,props.modId,path);return `${translated?translated+'\n':''}原始键名：${modSettingKey(path)}`}
 function matches(node:ConfigNode,path:string[]):boolean {
   if(!props.search.trim())return true
   const query=props.search.trim().toLowerCase()
@@ -21,7 +22,7 @@ const rows=computed(()=>(props.node.children??[]).filter(c=>matches(c.node,[...p
     <template v-for="row in rows" :key="row.key">
       <details v-if="row.node.type==='object'||row.node.type==='compound'" :data-design-key="designIdentity(modId,...path,row.key)" class="mod-setting-section" open><summary data-design-nav>{{label([...path,row.key])}}<small>{{row.key}}</small></summary><ModConfigGroup :node="row.node" :path="[...path,row.key]" :mod-id="modId" :translations="translations" :search="search" :disabled="disabled" @change="emit('change')"/></details>
       <div v-else-if="row.node.type==='null'" :data-design-key="designIdentity(modId,...path,row.key)" class="mod-null"><strong>{{label([...path,row.key])}}</strong><span class="muted">未设置（null）</span></div>
-      <ClickUiSetting v-else :design-key="designIdentity(modId,...path,row.key)" :node="row.node" :label="label([...path,row.key])" :description="modSettingDescription(translations,modId,[...path,row.key])||row.key" :generic="true" :disabled="disabled" @change="emit('change')"/>
+      <ClickUiSetting v-else :design-key="designIdentity(modId,...path,row.key)" :node="row.node" :label="label([...path,row.key])" :description="description([...path,row.key])" :generic="true" :disabled="disabled" @change="emit('change')"/>
     </template>
     <p v-if="!rows.length" class="muted">没有匹配的设置。</p>
   </template>

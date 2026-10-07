@@ -76,6 +76,8 @@ let invocation: Invocation | undefined
 let restartPending: { invocation: Invocation; sessionToken?: symbol; forceToken?: string; waiting: boolean } | undefined
 let beforeClientConfigLaunch: ((versionId: string) => Promise<void>) | undefined
 const sessionInvocations = new Map<symbol, Invocation>()
+const preparationControllers = new Map<symbol, AbortController>()
+class LaunchCancelledError extends Error { constructor(){ super('本次启动已取消'); this.name='LaunchCancelledError' } }
 export function setBeforeClientConfigLaunch(hook: (versionId: string) => Promise<void>) { beforeClientConfigLaunch = hook }
 
 /** Close the explicitly selected owned JVM, save after actual exit, then reuse its launch context. */
@@ -105,6 +107,13 @@ export function ownsClientConfigSession(versionId: string, folder: string): bool
 export function cancelRestart(): void {
   if (restartPending?.waiting) throw new Error('仍在等待游戏正常退出，请稍后取消')
   restartPending = undefined
+}
+/** 仅取消尚未创建客户端进程的启动准备，不触碰已运行的游戏。 */
+export function cancelLaunch(versionId?: string, folder?: string): boolean {
+  const match=[...preparationControllers.entries()].reverse().find(([token])=>{ const ctx=sessionInvocations.get(token); return !!ctx && (!versionId || ctx.versionId===versionId) && (!folder || pathIdentity(ctx.folder)===pathIdentity(folder)) })
+  if(!match)return false
+  match[1].abort(new LaunchCancelledError())
+  return true
 }
 
 /** Holds ownership across close -> relaunch so another click cannot race into the gap. */
@@ -298,13 +307,17 @@ export async function launch(
   requireDesktopGamePlatform(process.platform)
   await beforeClientConfigLaunch?.(versionId)
   const token = gameSession.reserve(versionId)
+  const cancelController = new AbortController()
+  preparationControllers.set(token,cancelController)
   launchLog.info(`开始启动实例 ${versionId}${serverAddress ? `（直达服务器 ${serverAddress}）` : ''}`)
   invocation = { versionId, folder: gameDir(), emit, sendLog, onState, serverAddress, options: { ...options } }
   sessionInvocations.set(token,invocation)
-  try { await launchOwned(versionId, emit, sendLog, onState, serverAddress, token, invocation.options) }
+  try { await launchOwned(versionId, emit, sendLog, onState, serverAddress, token, invocation.options, cancelController.signal) }
   catch (error) {
     gameSession.release(token)
     sessionInvocations.delete(token)
+    preparationControllers.delete(token)
+    if (error instanceof LaunchCancelledError || cancelController.signal.reason instanceof LaunchCancelledError) { onState({status:'exited',code:0,intentionalStop:true,text:'已取消本次启动'}); return }
     launchLog.error(`实例 ${versionId} 启动失败`, error)
     throw error
   }
@@ -312,13 +325,14 @@ export async function launch(
 
 async function launchOwned(
   versionId: string, emit: ProgressEmit, sendLog: SendLog, onState: OnState,
-  serverAddress: string | undefined, token: symbol, options: LaunchOptions = {}
+  serverAddress: string | undefined, token: symbol, options: LaunchOptions = {}, cancelSignal?: AbortSignal
 ): Promise<void> {
   const settings = getSettings()
   const deadline = new ProgressDeadline(60000, () => onState({ status: 'error', text: '启动准备已连续 60 秒没有进展，已取消本次启动；正在收尾，请稍后重试。' }))
+  const launchSignal = cancelSignal ? AbortSignal.any([deadline.signal,cancelSignal]) : deadline.signal
   const originalEmit = emit
   emit = event => {
-    if (deadline.signal.aborted) return
+    if (launchSignal.aborted) return
     deadline.progress(JSON.stringify([event.stage, event.progress, event.bytesDone, event.text]))
     originalEmit(event)
   }
@@ -389,7 +403,7 @@ async function launchOwned(
     }
     if (flattened && !chainBroken) {
       emit({ stage: 'repair', progress: 0, text: `检测到游戏本体缺失，正在自动补全…` })
-      await installClientJarOnly(versionId, emit, deadline.signal)
+      await installClientJarOnly(versionId, emit, launchSignal)
       emit({ stage: 'repair', progress: 1, text: '文件补全完成' })
     } else {
       emit({
@@ -407,7 +421,7 @@ async function launchOwned(
       }
       // 加载器实例的依赖原版补进 base 区；独立原版实例仍在 versions 区修复
       const dest = baseIdProbe !== versionId && !baseInVersions ? 'base' : 'versions'
-      await installVanilla(realId, emit, dest, realId !== baseIdProbe ? baseIdProbe : undefined, deadline.signal)
+      await installVanilla(realId, emit, dest, realId !== baseIdProbe ? baseIdProbe : undefined, launchSignal)
       emit({ stage: 'repair', progress: 1, text: '文件补全完成' })
     }
   }
@@ -441,14 +455,14 @@ async function launchOwned(
   if (!account) throw new Error('尚未选择账号，请先在账号页添加并选择一个账号')
   const timed = async <T>(stage: string, work: () => Promise<T>): Promise<T> => {
     const started = Date.now()
-    try { deadline.signal.throwIfAborted(); const result = await work(); deadline.signal.throwIfAborted(); return result }
+    try { launchSignal.throwIfAborted(); const result = await work(); launchSignal.throwIfAborted(); return result }
     finally { log(`[KAMUCL] 启动准备 · ${stage}：${Date.now() - started}ms`) }
   }
   const [{ classpath, nativesPath, launchAssets }, [validAccount, externalAuthArgs], javaPath] = await waitForPreparation([
     () => timed('游戏文件与配置', async () => {
       emit({ stage: 'repair', progress: 0, text: '校验游戏本体完整性' })
       await ensureLaunchArtifact({ ...readVersionJson(baseId).downloads?.client, dest: clientJar }, settings.mirror,
-        (done, total) => emit({ stage: 'repair', progress: total ? done / total : 0, text: '修复游戏本体' }), deadline.signal)
+        (done, total) => emit({ stage: 'repair', progress: total ? done / total : 0, text: '修复游戏本体' }), launchSignal)
       // Renamed vanilla profiles can lose their canonical id in launcher metadata.
       try {
         const manifest = new AdmZip(clientJar).readAsText('version.json')
@@ -484,7 +498,7 @@ async function launchOwned(
       if (reused) log(`[KAMUCL] 已复用注册目录中 ${reused} 个运行库文件`)
       await repairNeoRuntime(merged, clientJar, readVersionJson(baseId), emit)
       const launchFiles = launchLibraryFiles(merged)
-      await mapLaunchFiles(launchFiles, file => resolveNativeIntegrity(file, deadline.signal))
+      await mapLaunchFiles(launchFiles, file => resolveNativeIntegrity(file, launchSignal))
       let checkedLibraries = 0, lastCheckProgress = 0
       const invalid = await mapLaunchFiles(launchFiles, async file => {
         const reason = await invalidLaunchArtifact(file)
@@ -501,7 +515,7 @@ async function launchOwned(
       const repairs = await Promise.allSettled(Array.from({ length: Math.min(8, damaged.length) }, async () => {
         while (repairIndex < damaged.length) {
           const file = damaged[repairIndex++]
-          await ensureLaunchArtifact(file, settings.mirror, (done,total) => emit({stage:'repair',progress:total ? done/total : 0,bytesDone:done,text:`修复依赖库 ${path.basename(file.dest)}`}), deadline.signal)
+          await ensureLaunchArtifact(file, settings.mirror, (done,total) => emit({stage:'repair',progress:total ? done/total : 0,bytesDone:done,text:`修复依赖库 ${path.basename(file.dest)}`}), launchSignal)
           launchLog.info(`已修复依赖库 ${path.basename(file.dest)}`)
           emit({ stage: 'repair', progress: ++repaired / damaged.length, text: `修复依赖库 ${repaired}/${damaged.length}` })
         }
@@ -546,7 +560,7 @@ async function launchOwned(
         async tasks => {
           emit({ stage: 'repair', progress: 0, text: `补全游戏资源（含语言文件）${tasks.length} 项` })
           await downloadAll(tasks, (done, total, speed, detail) =>
-            emit({ stage: 'repair', progress: total ? done / total : 1, text: `补全游戏资源 ${done}/${total}`, bytesDone:detail.bytesDone, speed }), settings.downloadThreads, settings.mirror, deadline.signal)
+            emit({ stage: 'repair', progress: total ? done / total : 1, text: `补全游戏资源 ${done}/${total}`, bytesDone:detail.bytesDone, speed }), settings.downloadThreads, settings.mirror, launchSignal)
         }
       )
       log(`[KAMUCL] 游戏资源：${launchAssets.root}；索引：${launchAssets.indexId}`)
@@ -766,12 +780,14 @@ async function launchOwned(
   emit({ stage: 'launch', progress: 1, text: '启动游戏进程' })
   // 脱离式创建：游戏进程与启动器生命周期完全解耦（Windows CreateProcessW，见 gracefulClose.ts），
   // 关闭启动器时游戏继续运行；stdout/stderr 仍以管道回流，日志体验不变。
-  deadline.signal.throwIfAborted()
+  launchSignal.throwIfAborted()
   for (const message of await upgradeInstalledBridge(effectiveGameDir, path.join(__dirname, 'kamucl-bridge.jar').replace('app.asar', 'app.asar.unpacked'))) log('[KAMUCL] ' + message)
-  deadline.signal.throwIfAborted()
+  launchSignal.throwIfAborted()
   deadline.dispose()
-  const proc = await withDeadline(signal => spawnGameProcess(javaPath, args, { cwd: effectiveGameDir, signal }), 15000, '游戏进程创建超时，请检查 Java 与系统权限')
+  launchSignal.throwIfAborted()
+  const proc = await withDeadline(signal => spawnGameProcess(javaPath, args, { cwd: effectiveGameDir, signal: AbortSignal.any([signal, launchSignal]) }), 15000, '游戏进程创建超时，请检查 Java 与系统权限')
   gameSession.attach(token, proc)
+  preparationControllers.delete(token)
   spawned = true
   const spawnedAt = Date.now()
   lastLaunch = {

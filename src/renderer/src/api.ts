@@ -280,6 +280,7 @@ export const prepareDirectJoin = (text: string, versionId: string, folder: strin
 // ---------------- 游戏 ----------------
 export const launchGame = (id: string, serverAddress?: string, folder?: string, createCommandWorld = false) =>
   invoke<void>(IPC.gameLaunch, id, serverAddress, folder, createCommandWorld)
+export const cancelGameLaunch = (id?: string, folder?: string) => invoke<boolean>(IPC.gameLaunchCancel, id, folder)
 export const restartGame = (id: string, folder: string, forceToken?: string) => invoke<{ requiresForce: boolean; forceToken?: string }>(IPC.gameRestart, id, folder, forceToken)
 export const cancelGameRestart = () => invoke<void>(IPC.gameRestartCancel)
 export const killGame = (forceToken?: string) => invoke<{ requiresForce: boolean; forceToken?: string }>(IPC.gameKill, forceToken)
