@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {designIdentity} from '@shared/visualDesign'
 /**
  * MOD 实时配置面板：通过 MiaoCL Bridge 桥接 MOD 展示与修改参数。
  * MOD 声明参数元数据（名称/说明/分组/类型/默认值/范围/生效方式），
@@ -216,13 +217,13 @@ function isModified(p: BridgeParam): boolean {
       </div>
       <div data-ui="BridgeView:f720f714d75f" v-if="loadingManifest" class="card empty"><span data-ui="BridgeView:6bcd3d93d313" class="spin"></span><span>正在读取参数清单…</span></div>
       <template v-else>
-        <div data-ui="BridgeView:ca3ed5c40349" v-for="mod in groupedParams" :key="mod.modId" class="bridge-mod">
-          <div data-ui="BridgeView:c7ebe4470e01" v-for="group in mod.groups" :key="group.group" class="card bridge-card">
+        <div data-ui="BridgeView:ca3ed5c40349" v-for="mod in groupedParams" :key="mod.modId" :data-design-key="designIdentity(mod.modId)" class="bridge-mod">
+          <div data-ui="BridgeView:c7ebe4470e01" v-for="group in mod.groups" :key="group.group" :data-design-key="designIdentity(group.group)" class="card bridge-card">
             <div data-ui="BridgeView:4a5c8c65dd64" class="bridge-card-head">
               <strong>{{ group.group }}</strong>
               <span class="muted">{{ mod.modId }}</span>
             </div>
-            <div data-ui="BridgeView:9534fa3e44a9" v-for="p in group.items" :key="p.id" class="bridge-row" :class="{ disabled: !p.visible || p.scope === 'SERVER' }">
+            <div data-ui="BridgeView:9534fa3e44a9" v-for="p in group.items" :key="p.id" :data-design-key="designIdentity(p.id)" class="bridge-row" :class="{ disabled: !p.visible || p.scope === 'SERVER' }">
               <div data-ui="BridgeView:20c0ec6ff98d" class="bridge-row-info">
                 <span data-ui="BridgeView:d6913ec6096c" class="bridge-label">
                   {{ p.label }}

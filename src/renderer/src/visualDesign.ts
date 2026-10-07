@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { store, toast } from './store'
 import type { Settings } from '@shared/types'
-import { emptyDesign, cleanDesign, resolveComponentDesign, type ComponentDesign, type VisualDesign } from '@shared/visualDesign'
+import { emptyDesign, cleanDesign, resolveComponentDesign, designPath, type ComponentDesign, type VisualDesign } from '@shared/visualDesign'
 type Appearance=Pick<Settings,'theme'|'custom'|'background'|'launchThumbnail'|'homeLayout'|'visualDesign'>
 export interface DesignTarget { key:string; scope:string; label:string; tag:string; depth:number; element:HTMLElement; parentKey?:string; text:boolean; container:boolean; sortable:boolean; decoration:boolean }
 export const designTargets=shallowRef<DesignTarget[]>([])
@@ -52,8 +52,8 @@ export function reorderComponent(target:DesignTarget,before:boolean){
 }
 export function installVisualDesign(){
  let frame=0
- const originals=new Map<HTMLElement,{styles:Map<string,string>;text:Map<Text,string>}>()
- const original=(el:HTMLElement)=>{let o=originals.get(el);if(!o){o={styles:new Map(),text:new Map()};originals.set(el,o)}return o}
+ const originals=new Map<HTMLElement,{styles:Map<string,string>;text:Map<Text,string>;appliedText:Map<Text,string>;identity?:string}>()
+ const original=(el:HTMLElement)=>{let o=originals.get(el);if(!o){o={styles:new Map(),text:new Map(),appliedText:new Map()};originals.set(el,o)}return o}
  function set(el:HTMLElement,key:string,value:string){const o=original(el);if(!o.styles.has(key))o.styles.set(key,el.style.getPropertyValue(key));if(el.style.getPropertyValue(key)!==value)el.style.setProperty(key,value,'important')}
  function restore(){for(const [el,o]of originals){for(const[k,v]of o.styles){if(v)el.style.setProperty(k,v);else el.style.removeProperty(k)}for(const[n,v]of o.text)if(n.isConnected&&n.nodeValue!==v)n.nodeValue=v}originals.clear()}
  const update=()=>{
@@ -68,16 +68,24 @@ export function installVisualDesign(){
   for(const el of document.querySelectorAll<HTMLElement>('[data-ui]')){
    if(el.closest('[data-design-tools]')||el.closest('.edit-tip')||el.classList.contains('app-bg'))continue
    const content=el.closest('.content')
-   const scope=el.closest('.sidebar, .topbar') || el.classList.contains('shell') ? 'global' : designScope.value
-   const ancestors:string[]=[];let parent:HTMLElement|null=el
-   while(parent){if(parent.dataset.ui)ancestors.unshift(parent.dataset.ui);parent=parent.parentElement}
+   const scope=el.closest<HTMLElement>('[data-design-scope]')?.dataset.designScope || (el.closest('.sidebar, .topbar') || el.classList.contains('shell') ? 'global' : designScope.value)
+   const chain:{ui?:string;identity?:string}[]=[];let parent:HTMLElement|null=el
+   while(parent){chain.unshift({ui:parent.dataset.ui,identity:parent.dataset.designKey});parent=parent.parentElement}
+   const ancestors=designPath(chain)
    let key=ancestors.join('/');const duplicate=counts.get(key)||0;counts.set(key,duplicate+1);key+='~'+duplicate
    elementKeys.set(el,key)
+   const previous=originals.get(el)
+   if(previous?.identity&&previous.identity!==scope+'|'+key){
+    for(const[k,v]of previous.styles){if(v)el.style.setProperty(k,v);else el.style.removeProperty(k)}
+    for(const[n,v]of previous.text)if(n.isConnected&&n.nodeValue===previous.appliedText.get(n))n.nodeValue=v
+    originals.delete(el)
+   }
    const text=Array.from(el.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&(n.textContent?.trim()||originals.get(el)?.text.has(n as Text))),tag=el.tagName.toLowerCase()
    const named:Array<[string,string]>=[['.shell','启动器窗口'],['.sidebar','侧栏'],['.topbar','顶栏'],['.content','页面'],['.hero','游戏封面'],['.hero-content','封面信息'],['.home-layout','首页布局'],['.home-main','首页主区'],['.home-side','首页侧区'],['.instance-card','游戏实例卡片'],['.theme-option','主题卡片'],['.launch-btn,.launch-main','启动按钮']];const semantic=named.find(([selector])=>el.matches(selector))?.[1]
-   let decoration=!!el.closest('.theme-preview,.fm-file-icon,.nav-bubble,svg,.nav-icon')||(!text&&!el.children.length&&!['input','textarea','img','button','select'].includes(tag))
+   const control=el.matches('.click-setting,.feature-parameters,.feature-list,.category-list,.settings-panel,.live-key-row,.live-key-settings,.live-key-categories,.mod-setting-section,.config-node,.config-entry,.switch,.switch-ui,.brand-slot,.player-skin-logo,.mod-menu-groups,.group-tabs,.client-configs')
+   let decoration=!!el.closest('.theme-preview,.fm-file-icon,.nav-bubble,svg,.nav-icon')||(!semantic&&!control&&!text&&!el.children.length&&!['input','textarea','img','button','select'].includes(tag))
    const kind=el.matches('button')?'按钮':el.matches('input,select,textarea')?'输入控件':el.matches('.card,article,section')?'卡片':el.matches('h1,h2,h3,h4')?'标题':text?'文字':el.matches('.sidebar')?'侧栏':el.matches('.topbar')?'顶栏':'容器'
-   if(!semantic&&!text&&!el.matches('button,input,select,textarea,img,.card,article,section,[role]'))decoration=true
+   if(!semantic&&!control&&!text&&!el.matches('button,input,select,textarea,img,.card,article,section,[role]'))decoration=true
    const labelText=(semantic||el.getAttribute('aria-label')||el.getAttribute('title')||(text?Array.from(el.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join(''):el.matches('button')?el.textContent:el.querySelector('h1,h2,h3,h4,strong')?.textContent)||'').trim().replace(/\s+/g,' ').slice(0,34)
    const parentEl=el.parentElement?.closest<HTMLElement>('[data-ui]')
    targets.push({key,scope,label:semantic|| (labelText?kind+' · '+labelText:kind),tag,depth:ancestors.length,element:el,parentKey:parentEl?elementKeys.get(parentEl):undefined,text,container:el.children.length>0&&!['button','label'].includes(tag),sortable:!!el.parentElement&&['flex','inline-flex','grid','inline-grid'].includes(getComputedStyle(el.parentElement).display),decoration})
@@ -106,15 +114,16 @@ export function installVisualDesign(){
    if(o)for(const[k,v]of o.styles)if(!(k in properties)){if(v)el.style.setProperty(k,v);else el.style.removeProperty(k);o.styles.delete(k)}
    for(const[k,v]of Object.entries(properties))set(el,k,v)
    const texts=Array.from(el.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE&&(n.textContent?.trim()||o?.text.has(n as Text))) as Text[]
-   if(style.text!==undefined&&texts.length){const base=original(el);texts.forEach((n,i)=>{if(!base.text.has(n))base.text.set(n,n.nodeValue||'');const value=i===0?style.text!:'';if(n.nodeValue!==value)n.nodeValue=value})}
+   if(style.text!==undefined&&texts.length){const base=original(el);texts.forEach((n,i)=>{if(!base.text.has(n))base.text.set(n,n.nodeValue||'');const value=i===0?style.text!:'';base.appliedText.set(n,value);if(n.nodeValue!==value)n.nodeValue=value})}
    else if(o?.text.size){for(const[n,v]of o.text)if(n.isConnected)n.nodeValue=v;o.text.clear()}
+   const applied=originals.get(el);if(applied)applied.identity=scope+'|'+key
   }
   for(const t of targets){let p=targets.find(x=>x.key===t.parentKey);while(p?.decoration)p=targets.find(x=>x.key===p!.parentKey);t.parentKey=p?.key;t.depth=(p?.depth||0)+1}
   designTargets.value=targets
  }
  refresh=()=>{if(!frame)frame=requestAnimationFrame(update)}
  const observer=new MutationObserver(records=>{if(records.every(r=>(r.target instanceof Element?r.target:r.target.parentElement)?.closest('[data-design-tools]')))return;refresh()})
- observer.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['data-design-page']})
+ observer.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['data-design-page','data-design-key','data-design-scope']})
  const stop=watch(()=>[store.currentView,store.editMode,currentDesign.value],refresh,{deep:true})
  window.addEventListener('resize',refresh);refresh()
  return()=>{stop();observer.disconnect();cancelAnimationFrame(frame);restore();window.removeEventListener('resize',refresh)}

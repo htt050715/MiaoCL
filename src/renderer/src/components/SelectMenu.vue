@@ -4,6 +4,7 @@
  * 浮层 Teleport 到 body 避免卡片 overflow 裁切；点击外部 / Esc 关闭。
  */
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { designIdentity } from '@shared/visualDesign'
 
 defineOptions({ inheritAttrs: false })
 
@@ -23,6 +24,7 @@ const buttonEl = ref<HTMLElement | null>(null)
 const menuStyle = ref<Record<string, string>>({})
 
 const currentOption = computed(() => props.options.find(o => o.value === props.modelValue))
+function designOwner() { const chain:string[]=[];let element:HTMLElement|null=buttonEl.value;while(element){if(element.dataset.ui)chain.unshift(element.dataset.ui);if(element.dataset.designKey)chain.unshift(element.dataset.designKey);element=element.parentElement}return designIdentity(...chain) }
 const currentLabel = computed(() =>
   props.options.find((o) => o.value === props.modelValue)?.label ?? props.placeholder ?? '请选择'
 )
@@ -83,11 +85,12 @@ onBeforeUnmount(close)
   </button>
   <Teleport to="body">
     <Transition name="popover">
-    <div data-ui="SelectMenu:3ebdff14f591" v-if="open" ref="menuEl" class="select-menu-float" @wheel.stop :style="menuStyle" role="listbox">
+    <div data-ui="SelectMenu:3ebdff14f591" v-if="open" ref="menuEl" :data-design-nav="$attrs['data-design-nav']" :data-design-key="designOwner()" :data-design-scope="buttonEl?.closest<HTMLElement>('[data-design-scope]')?.dataset.designScope" class="select-menu-float" @wheel.stop :style="menuStyle" role="listbox">
       <button data-ui="SelectMenu:439e3aacaaa9"
         v-for="(o,i) in props.options"
         :data-focused="active===i"
         :key="o.value"
+        :data-design-key="designIdentity(o.value)"
         type="button"
         class="select-menu-option"
         :class="{ active: o.value === props.modelValue }"

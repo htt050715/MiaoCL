@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { designIdentity } from '@shared/visualDesign'
+
 import {computed,onUnmounted,ref,watch} from 'vue'
 import {getLiveKeys,setLiveKey,errText} from '../api'
 import {selectedInstance,displayVersionName,toast} from '../store'
@@ -101,14 +103,14 @@ onUnmounted(()=>{disposed=true;++epoch;clearTimeout(timer);stopCapture()})
 </script>
 
 <template>
-  <div class="live-keys" data-live-keys>
+  <div class="live-keys" data-live-keys data-design-page="live">
     <div class="live-key-status"><div><strong>{{selectedInstance?displayVersionName(selectedInstance):'请选择游戏实例'}}</strong><p class="muted">{{error|| (updated?`双向同步中 · ${snapshot?.items.length??0} 个绑定 · 更新于 ${updated}`:'正在连接游戏…')}}</p></div><button class="btn btn-ghost btn-sm" :disabled="busy||refreshing||!target" @click="refresh">重新读取</button></div>
     <p class="muted live-key-hint">修改后立即在所选游戏内生效，游戏按键菜单和模组菜单中的改动也会自动回到这里。原版与普通模组支持单键，彗星支持修饰键，史莱姆支持组合键。</p>
     <p v-for="warning in snapshot?.warnings" :key="warning" class="muted">{{warning}}</p>
     <div v-if="snapshot" class="live-key-layout">
-      <nav class="live-key-categories" aria-label="游戏键位分类"><button class="btn btn-ghost" :class="{active:!category}" @click="category=''">全部绑定</button><button v-for="name in groups" :key="name" class="btn btn-ghost" :class="{active:category===name}" @click="category=name">{{name}}</button></nav>
-      <div class="live-key-settings"><input v-model="search" class="input" placeholder="搜索名称、模组或快捷键…"/>
-        <div v-for="item in items" :key="item.id" class="live-key-row" :data-live-key="item.id">
+      <nav class="live-key-categories" aria-label="游戏键位分类"><button class="btn btn-ghost" :class="{active:!category}" data-design-nav @click="category=''">全部绑定</button><button v-for="name in groups" :key="name" :data-design-key="designIdentity(name)" data-design-nav class="btn btn-ghost" :class="{active:category===name}" @click="category=name">{{name}}</button></nav>
+      <div class="live-key-settings"><input data-design-nav v-model="search" class="input" placeholder="搜索名称、模组或快捷键…"/>
+        <div v-for="item in items" :key="item.id" :data-design-key="designIdentity(item.id)" class="live-key-row" :data-live-key="item.id">
           <div class="live-key-copy"><strong>{{label(item)}}</strong><small class="muted">{{group(item)}}{{conflict(item)?' · 与其他功能共用按键':''}}</small>
             <div v-if="item.kind==='slime'" class="live-key-flags"><label><input type="checkbox" :checked="item.binding.release" :disabled="busy||!!error||!!capturing" @change="save(item,{...clone(item.binding),release:($event.target as HTMLInputElement).checked})"/>松开时触发</label><label><input type="checkbox" :checked="item.binding.passThrough" :disabled="busy||!!error||!!capturing" @change="save(item,{...clone(item.binding),passThrough:($event.target as HTMLInputElement).checked})"/>允许原版操作</label></div>
           </div>
@@ -122,5 +124,6 @@ onUnmounted(()=>{disposed=true;++epoch;clearTimeout(timer);stopCapture()})
   </div>
 </template>
 <style scoped>
+.live-key-settings{display:flex;flex-direction:column}
 .live-key-status{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3)}.live-key-status strong{font-size:var(--text-sm)}.live-key-status p,.live-key-hint{font-size:var(--text-xs);line-height:1.7;overflow-wrap:anywhere}.live-key-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:var(--space-4);margin-top:var(--space-4)}.live-key-categories{display:flex;flex-direction:column;gap:var(--space-1);align-self:start;max-height:65vh;overflow:auto;padding:var(--space-2);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card-2);position:sticky;top:0}.live-key-categories .btn{text-align:left;white-space:normal;justify-content:flex-start;overflow-wrap:anywhere}.live-key-categories .active{background:var(--accent-soft);color:var(--accent)}.live-key-settings{min-width:0}.live-key-settings>.input{width:100%;margin-bottom:var(--space-3)}.live-key-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-2);border-bottom:1px solid var(--border)}.live-key-copy{flex:1;min-width:0;display:grid;gap:var(--space-1);overflow-wrap:anywhere}.live-key-copy strong{font-size:var(--text-sm)}.live-key-copy small,.live-key-flags{font-size:var(--text-xs)}.live-key-flags{display:flex;gap:var(--space-3);flex-wrap:wrap;color:var(--text-dim)}.live-key-flags label{display:flex;align-items:center;gap:var(--space-1)}.cfg-bind{min-width:120px;max-width:220px;padding:var(--space-2) var(--space-3);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card-2);color:var(--text);font-size:var(--text-xs);font-family:inherit;cursor:pointer;overflow-wrap:anywhere}.cfg-bind:hover{border-color:var(--accent)}.cfg-bind.modified{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));background:var(--accent-soft)}.cfg-bind.capturing,.live-key-clear{position:relative;z-index:9001}.cfg-bind.capturing{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);color:var(--accent-2)}.cfg-capture-mask{z-index:9000}@media(max-width:800px){.live-key-layout{grid-template-columns:1fr}.live-key-categories{position:static;flex-direction:row;max-height:170px;flex-wrap:wrap}.live-key-row{flex-wrap:wrap}.live-key-copy{flex-basis:100%}.cfg-bind{max-width:100%}}
 </style>

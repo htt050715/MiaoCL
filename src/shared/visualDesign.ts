@@ -6,6 +6,20 @@ export interface ComponentDesign {
 export interface PageDesign { width: number; height: number; components: Record<string, ComponentDesign> }
 export interface VisualDesign { version: 1; pages: Record<string, PageDesign> }
 export const emptyDesign = (): VisualDesign => ({ version: 1, pages: {} })
+/** Stable semantic identity, including Unicode names, without leaking raw config paths into keys. */
+export function designIdentity(...parts: string[]): string {
+  const value = JSON.stringify(parts); let a = 2166136261, b = 2246822519
+  for (let i = 0; i < value.length; i++) { a = Math.imul(a ^ value.charCodeAt(i), 16777619); b = Math.imul(b ^ value.charCodeAt(i), 3266489917) }
+  return (a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0')
+}
+export function designPath(nodes: { ui?: string; identity?: string }[]): string[] {
+  const context: string[] = [], result: string[] = []
+  for (const node of nodes) {
+    if (node.identity) context.push(node.identity)
+    if (node.ui) result.push(node.ui + (context.length ? ':d-' + designIdentity(...context) : ''))
+  }
+  return result
+}
 /** Preserve uniquely identified controls when a layout adds or removes a wrapper.
  * Ambiguous repeated controls never inherit a different control's customization. */
 export function resolveComponentDesign(components: Record<string, ComponentDesign> | undefined, key: string): ComponentDesign | undefined {
@@ -22,7 +36,7 @@ export function cleanDesign(input: unknown): VisualDesign {
   for (const [page, raw] of Object.entries(value.pages).slice(0,100) as [string,any][]) {
     if (!/^[a-zA-Z0-9/_-]{1,160}$/.test(page) || !raw?.components) continue
     const components: Record<string, ComponentDesign> = Object.create(null)
-    for (const [key, source] of Object.entries(raw.components).slice(0,4000) as [string,any][]) {
+    for (const [key, source] of Object.entries(raw.components).slice(0,20000) as [string,any][]) {
       if (!/^[a-zA-Z0-9:./_~-]{1,2000}$/.test(key) || !source || typeof source !== 'object') continue
       const style: any = {}
       for (const [name, [min,max]] of Object.entries(limits)) if (typeof source[name] === 'number' && Number.isFinite(source[name])) style[name] = Math.min(max,Math.max(min,source[name]))

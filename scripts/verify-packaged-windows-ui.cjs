@@ -55,7 +55,7 @@ fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ theme: 'tran
   gameDir: games, activeFolder: games, folders: [{ path: games, isDefault: true }], startupAnimation: false }))
 const report = { version, root, electron: process.versions.electron, compact, mode }
 const wait = ms => new Promise(r => setTimeout(r, ms))
-const deadline = setTimeout(() => { console.error('Packaged UI timed out', root); app.exit(2) }, 60000)
+const deadline = setTimeout(() => { console.error('Packaged UI timed out', root); app.exit(2) }, 120000)
 app.whenReady().then(() => {
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
 })
@@ -293,6 +293,7 @@ app.on('browser-window-created', (_event, window) => {
       window.webContents.sendInputEvent({type:'keyDown',keyCode:'R'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'R'})
       for(let i=0;i<50&&writes<1;i++)await wait(100)
       assert.equal(writes,1);assert.deepEqual(liveState.items[0].binding.keys,['key.keyboard.r'])
+       for(let i=0;i<50;i++){if(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').innerText==='R'`))break;await wait(100)}
       assert(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').innerText==='R'`),'Authoritative key reply not displayed')
       liveState.items[0].binding=binding(['key.keyboard.x']) // Game-side menu changes do not send launcher writes.
       for(let i=0;i<50;i++){if(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').innerText==='X'`))break;await wait(100)}
@@ -301,6 +302,7 @@ app.on('browser-window-created', (_event, window) => {
       window.webContents.sendInputEvent({type:'keyDown',keyCode:'R',modifiers:['control']});window.webContents.sendInputEvent({type:'keyUp',keyCode:'R',modifiers:['control']})
       for(let i=0;i<50&&writes<2;i++)await wait(100)
       assert.equal(liveState.items[2].binding.modifiers,2)
+      for(let i=0;i<50;i++){if(await window.webContents.executeJavaScript(`!document.querySelector('${keyRow('slime:hotkey')} input[type=checkbox]').disabled`))break;await wait(100)}
       await window.webContents.executeJavaScript(`document.querySelector('${keyRow('slime:hotkey')} input[type=checkbox]').click()`)
       for(let i=0;i<50&&writes<3;i++)await wait(100)
       assert.equal(liveState.items[3].binding.release,true)
@@ -310,7 +312,9 @@ app.on('browser-window-created', (_event, window) => {
       window.webContents.sendInputEvent({type:'keyDown',keyCode:'R'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'R'})
       await wait(1200);assert.equal(writes,3);assert.deepEqual(liveState.items[0].binding.keys,['key.keyboard.w'])
       if(process.env.MIAOCL_UI_VISIBLE==='1'){window.setSize(1360,860);await window.webContents.executeJavaScript("document.querySelector('.content').scrollTop=0");await wait(800);fs.writeFileSync(path.join(root,'live-keys.png'),(await window.webContents.capturePage()).toPNG());window.setSize(1024,768);await wait(500);assert.equal(await window.webContents.executeJavaScript("document.documentElement.scrollWidth>innerWidth"),false,'Narrow live keys overflow');fs.writeFileSync(path.join(root,'live-keys-narrow.png'),(await window.webContents.capturePage()).toPNG())}
-      await new Promise(resolve=>bridge.close(resolve))
+       await require('./verify-identity-workbench.cjs')({window,root,games,instance,report,archive,liveConnected:true})
+       assert.equal(writes,3,'Appearance workbench changed live game keybindings')
+       await new Promise(resolve=>bridge.close(resolve))
       for(let i=0;i<50;i++){if(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').disabled`))break;await wait(100)}
       assert(await window.webContents.executeJavaScript(`document.querySelector('${keyRow('key_key.forward')} .cfg-bind').disabled`),'Disconnected keys still editable')
       report.ui.liveKeys={registeredModKeys:true,launcherToGame:true,gameToLauncher:true,meteorModifiers:true,slimeFlags:true,conflict:true,disconnect:true,reads,writes}

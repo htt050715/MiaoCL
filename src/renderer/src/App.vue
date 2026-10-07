@@ -95,7 +95,8 @@ const ServersView = defineAsyncComponent(() => import('./views/ServersView.vue')
 const FriendConnectView = defineAsyncComponent(() => import('./views/FriendConnectView.vue'))
 const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
 const AccountsView = defineAsyncComponent(() => import('./views/AccountsView.vue'))
-import brandHead from './assets/splash-face.png'
+import { useLauncherIdentity } from './launcherIdentity'
+const displayIdentity = useLauncherIdentity()
 
 // Vite 的全局 define 在 script 中解析；模板直接访问会被 Vue 当作组件实例字段。
 const appVersion = __APP_VERSION__
@@ -1252,7 +1253,7 @@ onUnmounted(() => {
       <!-- Logo 区 -->
       <div data-ui="App:fc5fc8ba7e96" class="logo-area">
         <div class="brand-slot">
-        <img v-if="!store.settings?.playerSkinLogo" class="brand-head" :src="brandHead" alt="MiaoCL 头像"/>
+        <img v-if="!store.settings?.playerSkinLogo" class="brand-head" :src="displayIdentity.avatar" :alt="displayIdentity.username+' 的头像'"/>
         <PlayerSkinLogo v-if="store.settings?.playerSkinLogo"/>
         </div>
         <div data-ui="App:7494cda29e47" class="logo-text">

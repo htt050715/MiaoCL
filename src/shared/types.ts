@@ -373,6 +373,8 @@ export interface Settings {
   uiWindowAutoFit?: boolean
   /** Explicit reduction is additive to the operating system preference; absent means follow system. */
   playerSkinLogo?: boolean
+  /** Empty follows the current gameplay account; a saved ID pins the display identity. */
+  displayAccountId?: string
   reduceMotion?: boolean
   visualDesign?: import('./visualDesign').VisualDesign
   gameDir: string
@@ -927,6 +929,7 @@ export const IPC = {
   skinHistoryRename: 'skin:historyRename', // (id: string, name: string) => SkinHistoryEntry[]  重命名显示名
   skinUploadHistory: 'skin:uploadHistory', // (id: string) => ProfileSkins  用历史记录快速换回
   skinAvatar: 'skin:avatar', // (accountId?) => string | null  账户缓存中的完整皮肤 dataURL，renderer 统一裁剪头部
+  launcherIdentity: 'skin:launcherIdentity',
 
   // 文件/目录（rel 为相对游戏目录的子目录：'mods' | 'resourcepacks' | 'shaderpacks' | ''）
   appOpenDir: 'app:openDir', // (rel?: string) => void  用系统资源管理器打开目录

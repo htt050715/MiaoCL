@@ -2,7 +2,7 @@ import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 import { visualIds } from './scripts/visual-ids'
 import { resolve } from 'node:path'
-import { readFileSync, copyFileSync, existsSync } from 'node:fs'
+import { readFileSync, copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
@@ -10,6 +10,9 @@ const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')
 export default defineConfig({
   main: {
     plugins: [{ name: 'kamucl-native-material', closeBundle() {
+      mkdirSync(resolve(__dirname, 'out/main/identity-assets'), { recursive: true })
+      copyFileSync(resolve(__dirname, 'src/renderer/src/assets/htt-skin.png'), resolve(__dirname, 'out/main/identity-assets/htt-skin.png'))
+      copyFileSync(resolve(__dirname, 'src/renderer/src/assets/splash-face.png'), resolve(__dirname, 'out/main/identity-assets/htt-avatar.png'))
       execFileSync(process.execPath, [resolve(__dirname, 'scripts/build-native.cjs')], { stdio: 'inherit', windowsHide: true })
       // 内置桥接 MOD：随启动器分发，面板可一键装入实例 mods 目录
       const bridgeJar = resolve(__dirname, 'bridge/dist/kamucl-bridge-1.1.4.jar')

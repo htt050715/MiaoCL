@@ -5,7 +5,7 @@ import '../client-configs.css'
 </script>
 <template>
   <div class="page client-configs-page">
-    <div class="page-head config-page-head"><div><h1 class="page-title">客户端参数</h1><p class="page-sub">{{ selectedInstance ? displayVersionName(selectedInstance) : '先选择游戏实例' }} · 按分类浏览模块与具体设置</p></div><button class="btn btn-ghost" @click="store.currentView='bridge'">返回 MOD 面板</button></div>
+    <div class="page-head config-page-head"><div><h1 class="page-title">客户端参数</h1><p class="page-sub">{{ selectedInstance ? displayVersionName(selectedInstance) : '先选择游戏实例' }} · 按分类浏览模块与具体设置</p></div><button class="btn btn-ghost" data-design-nav @click="store.currentView='bridge'">返回 MOD 面板</button></div>
     <ClientConfigsPanel />
   </div>
 </template>

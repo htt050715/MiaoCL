@@ -1,4 +1,5 @@
 import { currentPlatformInfo } from './platform'
+import { readLauncherIdentity } from './core/launcherIdentity'
 import { registerClientConfigsIpc } from './core/clientConfigsIpc'
 import { applyUiWindowAutoFit } from './uiWindowSizing'
 import { registerRecordingsIpc } from './core/recordingsIpc'
@@ -783,6 +784,7 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
     skins.uploadHistory(String(id ?? ''))
   )
   ipcMain.handle(IPC.skinAvatar, (_e, accountId?: string) => skins.getAvatar(accountId ? String(accountId) : undefined))
+  ipcMain.handle(IPC.launcherIdentity, () => readLauncherIdentity())
 
   // ---------------- 游戏 ----------------
   // 异步执行；开始发 launching，退出/错误经 event:launchState 推送

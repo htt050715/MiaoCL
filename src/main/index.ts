@@ -2,6 +2,7 @@ import { app, BrowserWindow, crashReporter, shell, ipcMain, net, protocol, type 
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createStartupSplash } from './startupSplash'
+import { attachIdentityWindow } from './core/launcherIdentity'
 import { prepareStartupFrames } from './startupRendering'
 import { authorizeManagedImage } from './core/appearanceAssets'
 import {
@@ -107,7 +108,7 @@ function createWindow(startup?: Awaited<ReturnType<typeof createStartupSplash>>)
   if (autoFit) initialWindow = adaptiveWindowOptions(initialWindow)
   win = new BrowserWindow({
     ...initialWindow,
-    icon: join(__dirname, '../../build/icon.png'),
+    icon: join(__dirname, 'identity-assets/htt-avatar.png'),
     show: false,
     title: 'MiaoCL',
     webPreferences: {
@@ -132,6 +133,7 @@ function createWindow(startup?: Awaited<ReturnType<typeof createStartupSplash>>)
   trackWindowState(win)
   win.once('show', () => { void acknowledgeUpdateStartup().catch(error => launcherLogWarn('update', '更新确认失败', error)) })
   const mainWindow = win
+  attachIdentityWindow(mainWindow)
   skinEditorDirty=false
   skinEditorPrefsPending=false
   skinEditorPrefsOwners.clear()

@@ -1,4 +1,5 @@
 import './download-cancellation.test'
+import './launcher-identity-workbench.test'
 import './slimefun-localization.test'
 import './meteor-config-workspace.test'
 import './modConfigs.test'

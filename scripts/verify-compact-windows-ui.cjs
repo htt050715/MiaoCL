@@ -22,7 +22,7 @@ const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
 for (const mode of ['hardware', 'software']) {
   const run = spawnSync(path.join(root, productName + '.exe'), [path.resolve('scripts/verify-packaged-windows-ui.cjs'), path.join(root, 'payload/app.asar')], {
-    env: { ...env, KAMUCL_TEST_SOFTWARE: mode === 'software' ? '1' : '0' }, encoding: 'utf8', windowsHide: true, timeout: 75000
+    env: { ...env, KAMUCL_TEST_SOFTWARE: mode === 'software' ? '1' : '0' }, encoding: 'utf8', windowsHide: true, timeout: 135000
   })
   fs.writeFileSync(path.join(root, mode + '.log'), (run.stdout || '') + (run.stderr || ''))
   console.log(run.stdout, run.stderr)

@@ -9,6 +9,7 @@ import MeteorValueControl from './MeteorValueControl.vue'
 import {configChild} from '@shared/configFeatures'
 
 const props = defineProps<{
+  designKey?: string
   node: ConfigNode
   label: string
   description?: string
@@ -51,7 +52,7 @@ function updateColor(value: string) {
 function displayChoice(value: string) { return props.optionLabels?.[value] ?? (props.slimefun ? slimefunChoice(value) : value.replace(/^enum:[^:]+:/, '').replaceAll('_', ' ')) }
 </script>
 <template>
-  <div class="click-setting" :class="{ 'click-setting-compound': !!node.children }">
+  <div :data-design-key="designKey" class="click-setting" :class="{ 'click-setting-compound': !!node.children }">
     <div class="click-setting-copy"><strong>{{ label }}</strong><small v-if="description" class="muted">{{ description }}</small><small v-if="isKeybind" class="muted">按配置格式填写快捷键</small></div>
     <div class="click-setting-control">
       <label v-if="boolean" class="switch" :title="label"><input type="checkbox" :checked="node.value === true || node.value === 1" :disabled="disabled" @change="update(($event.target as HTMLInputElement).checked)" /><span class="switch-ui" /></label>
@@ -63,7 +64,7 @@ function displayChoice(value: string) { return props.optionLabels?.[value] ?? (p
       <input v-else-if="isKeybind" class="input click-input" :value="node.value ?? ''" :disabled="disabled" @change="update(($event.target as HTMLInputElement).value)" />
       <textarea v-else-if="typeof node.value === 'string' && String(node.value).length > 120" class="input click-input click-textarea" :value="node.value ?? ''" :disabled="disabled" rows="2" @change="update(($event.target as HTMLTextAreaElement).value)" />
       <input v-else-if="!node.children" class="input click-input" :value="node.value ?? ''" :disabled="disabled" @change="update(($event.target as HTMLInputElement).value)" />
-      <details v-else class="click-compound"><summary>展开 {{ node.children.length }} 项</summary><ConfigNodeEditor :node="node" :label="label" :slimefun="slimefun" :label-path="labelPath" :disabled="disabled" :expanded-depth="2" @change="emit('change')" /></details>
+      <details v-else class="click-compound"><summary data-design-nav>展开 {{ node.children.length }} 项</summary><ConfigNodeEditor :node="node" :label="label" :slimefun="slimefun" :label-path="labelPath" :disabled="disabled" :expanded-depth="2" @change="emit('change')" /></details>
     </div>
   </div>
 </template>

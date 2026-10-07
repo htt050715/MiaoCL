@@ -268,6 +268,7 @@ export const uploadSkinFromHistory = (id: string) =>
   refreshSkinAfter(invoke<ProfileSkins>(IPC.skinUploadHistory, id))
 /** 当前选中账号的头像数据（微软=皮肤 dataURL / 离线=minotar 头像 dataURL / 无=null） */
 export const getSkinAvatar = (accountId?: string) => invoke<string | null>(IPC.skinAvatar, accountId)
+export const getLauncherIdentity = () => invoke<import('@shared/launcherIdentity').LauncherIdentity>(IPC.launcherIdentity)
 
 export const getDirectOverview = () => invoke<import('@shared/directConnect').DirectOverview>(IPC.directOverview)
 export const getDirectState = () => invoke<import('@shared/directConnect').DirectHostState>(IPC.directState)

@@ -54,6 +54,7 @@ function defaults(): Settings {
     ...DEFAULT_DOWNLOAD_LIMITS,
     defaultIsolation: true,
     playerSkinLogo: false,
+    displayAccountId: '',
     reduceMotion: false,
     uiWindowAutoFit: false,
     msClientId: DEFAULT_MS_CLIENT_ID,
@@ -98,6 +99,7 @@ export function getSettings(): Settings {
       ...def,
       ...raw,
       uiWindowAutoFit: raw.uiWindowAutoFit === true,
+      displayAccountId: typeof raw.displayAccountId === 'string' && raw.displayAccountId.length <= 200 ? raw.displayAccountId : '',
       ...normalizeVersionCategoryState(raw),
       visualDesign: cleanDesign(raw.visualDesign),
       resolution: { ...def.resolution, ...(raw.resolution ?? {}) },
@@ -174,6 +176,7 @@ export function getSettings(): Settings {
 
 /** 合并 patch 并写盘，返回合并后的完整 Settings */
 export function saveSettings(patch: Partial<Settings>): Settings {
+  if (patch.displayAccountId !== undefined && (typeof patch.displayAccountId !== 'string' || patch.displayAccountId.length > 200)) throw new Error('无效的展示账号')
   if (Object.prototype.hasOwnProperty.call(patch, 'uiWindowAutoFit') && typeof patch.uiWindowAutoFit !== 'boolean') throw new Error('UI窗口自适应必须为开启或关闭')
   const cur = getSettings()
   validateDownloadLimits({ ...cur, ...patch })

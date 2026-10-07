@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { designIdentity } from '@shared/visualDesign'
+
 import type { ConfigNode } from '@shared/clientConfigs'
 import SelectMenu from './SelectMenu.vue'
 import {parseSlimeValue,writeSlimeValue} from '@shared/snbtConfig'
 import {slimefunLabel,slimefunDescription,slimefunChoice,slimefunOptions,slimefunCodecLabel,slimefunCodecDescription,slimefunCodecEnum} from '../utils/slimefunLabels'
-const props = defineProps<{node:ConfigNode;label:string;search?:string;depth?:number;disabled?:boolean;expandedDepth?:number;slimefun?:boolean;labelPath?:string[];slimeCodec?:string}>()
+const props = defineProps<{designKey?:string;node:ConfigNode;label:string;search?:string;depth?:number;disabled?:boolean;expandedDepth?:number;slimefun?:boolean;labelPath?:string[];slimeCodec?:string}>()
 const emit = defineEmits<{(e:'change'):void}>()
 const encoded=ref<ReturnType<typeof parseSlimeValue>>(),rawEncoded=ref(false)
 watch(()=>props.node.value,value=>{encoded.value=props.node.type==='string'&&typeof value==='string'?parseSlimeValue(value):undefined},{immediate:true})
@@ -54,22 +56,22 @@ function append() {
 function remove(key:string) { props.node.children=props.node.children?.filter(c => c.key!==key); if(list.value)props.node.children?.forEach((c,i)=>c.key=String(i)); emit('change') }
 </script>
 <template>
-  <div class="config-node" :class="{container}" v-if="matches(label,node)">
+  <div :data-design-key="designKey" class="config-node" :class="{container}" v-if="matches(label,node)">
     <template v-if="container">
-      <button class="config-group" :aria-expanded="opened || !!search" @click="opened=!opened"><span>{{ opened || search ? '▾' : '▸' }} {{ label }}</span><small class="muted">{{ node.type }} · {{ node.children?.length }}</small></button>
+      <button data-design-nav class="config-group" :aria-expanded="opened || !!search" @click="opened=!opened"><span>{{ opened || search ? '▾' : '▸' }} {{ label }}</span><small class="muted">{{ node.type }} · {{ node.children?.length }}</small></button>
       <div v-if="opened || search" class="config-children">
-        <div v-for="child in displayed" :key="child.key" class="config-entry">
+        <div v-for="child in displayed" :key="child.key" :data-design-key="designIdentity(child.key)" class="config-entry">
           <ConfigNodeEditor :node="child.node" :label="child.key" :depth="(depth??0)+1" :expanded-depth="expandedDepth" :search="search" :disabled="disabled" :slimefun="slimefun" :slime-codec="slimeCodec" :label-path="[...(labelPath??[]),child.key]" @change="emit('change')"/>
           <button v-if="list" class="btn btn-ghost btn-sm" :disabled="disabled" :aria-label="'移除 '+child.key" @click="remove(child.key)">移除</button>
         </div>
-        <div v-if="children.length>60" class="config-pagination"><button class="btn btn-ghost btn-sm" :disabled="page===0" @click="page--">上一页</button><span>{{ page+1 }} / {{ Math.ceil(children.length/60) }}</span><button class="btn btn-ghost btn-sm" :disabled="(page+1)*60>=children.length" @click="page++">下一页</button></div>
+        <div v-if="children.length>60" class="config-pagination"><button class="btn btn-ghost btn-sm" :disabled="page===0" data-design-nav @click="page--">上一页</button><span>{{ page+1 }} / {{ Math.ceil(children.length/60) }}</span><button class="btn btn-ghost btn-sm" :disabled="(page+1)*60>=children.length" data-design-nav @click="page++">下一页</button></div>
         <div class="config-add" v-if="list || ['object','compound'].includes(node.type)">
           <template v-if="!list"><input v-model="newKey" class="input" placeholder="新字段名称" :disabled="disabled"/><SelectMenu v-model="newType" :options="(node.type==='compound'?['string','byte','short','int','long','float','double']:['string','number','boolean']).map(t=>({value:t,label:t}))" :disabled="disabled"/></template>
           <button class="btn btn-ghost btn-sm" :disabled="disabled || node.type==='list' && node.elementType===0 && !node.children?.length" @click="append">{{ list?'添加一项':'添加字段' }}</button>
         </div>
       </div>
     </template>
-    <div v-else-if="encoded&&!rawEncoded" class="config-encoded"><ConfigNodeEditor :node="encoded.root" :label="node.title||label" :depth="0" :expanded-depth="2" :disabled="disabled" :slimefun="slimefun" :slime-codec="encoded.prefix.split(':')[1]" :label-path="[]" @change="updateEncoded"/><button class="btn btn-ghost btn-sm" @click="rawEncoded=true">查看原始值</button></div>
+    <div v-else-if="encoded&&!rawEncoded" class="config-encoded"><ConfigNodeEditor :node="encoded.root" :label="node.title||label" :depth="0" :expanded-depth="2" :disabled="disabled" :slimefun="slimefun" :slime-codec="encoded.prefix.split(':')[1]" :label-path="[]" @change="updateEncoded"/><button class="btn btn-ghost btn-sm" data-design-nav @click="rawEncoded=true">查看原始值</button></div>
     <div v-else class="config-leaf">
       <label><span>{{ node.title || label }}</span><small class="muted">{{ slimefun && label!==props.label ? props.label+' · ' : node.title ? label+' · ' : '' }}{{ node.type }}</small><small v-if="description" class="muted">{{ description }}</small></label>
       <span v-if="node.type==='binary'" class="muted">二进制文件随整包导入导出</span>
@@ -79,10 +81,11 @@ function remove(key:string) { props.node.children=props.node.children?.filter(c 
       <textarea v-else-if="typeof node.value==='string' && (node.value.includes('\n') || node.value.length>120)" class="input config-value" :value="String(node.value)" :disabled="disabled" rows="3" @input="value"/>
       <input v-else class="input config-value" :type="numeric?'number':'text'" :min="node.min" :max="node.max" :step="['byte','short','int'].includes(node.type)?1:'any'" :value="node.value??''" :disabled="disabled" @input="value"/>
       <button v-if="node.type==='byte'" class="btn btn-ghost btn-sm" :disabled="disabled" @click="byteInteger=!byteInteger">{{ byteInteger?'开关':'整数' }}</button>
-      <button v-if="encoded" class="btn btn-ghost btn-sm" @click="rawEncoded=false">结构化编辑</button>
+      <button v-if="encoded" class="btn btn-ghost btn-sm" data-design-nav @click="rawEncoded=false">结构化编辑</button>
     </div>
   </div>
 </template>
 <style scoped>
+.config-children{display:flex;flex-direction:column}
 .config-group{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;background:var(--hover);color:var(--text);border:0;border-radius:var(--radius-sm);padding:12px;text-align:left;cursor:pointer}.config-children{padding:8px 0 8px 14px;border-left:1px solid var(--border);margin-left:8px}.config-entry{display:flex;gap:8px;align-items:start;padding:3px 0}.config-node{width:100%;min-width:0}.config-leaf{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:8px 0;border-bottom:1px solid var(--border)}.config-leaf>label:first-child{min-width:0;display:flex;flex-direction:column;overflow-wrap:anywhere;font-size:var(--text-sm)}.config-value{width:min(55%,420px);min-width:160px}.config-add,.config-pagination{display:flex;gap:8px;align-items:center;padding:10px 0}.config-add .input{width:180px}.config-add :deep(.select-menu){width:110px}.config-pagination{font-size:var(--text-sm)}
 </style>

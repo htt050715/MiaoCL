@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {computed,ref} from 'vue'
+import {designIdentity} from '@shared/visualDesign'
 import type {ConfigNode} from '@shared/clientConfigs'
 import {configChild} from '@shared/configFeatures'
 const props=defineProps<{node:ConfigNode;kind?:string;disabled?:boolean}>()
@@ -27,7 +28,7 @@ const bindingLabel=computed(()=>{if(Number(field(bindKey.value)?.value??-1)<0)re
 <template>
   <div v-if="color" class="meteor-color-control"><input type="color" :value="hex" :disabled="disabled" aria-label="选择颜色" @input="setColor(($event.target as HTMLInputElement).value)"/><label class="alpha-control">透明度<input type="range" min="0" max="255" :value="field('a')?.value??255" :disabled="disabled" @input="set('a',Number(($event.target as HTMLInputElement).value))"/><output>{{field('a')?.value}}</output></label><label v-if="field('rainbow')" class="rainbow-control"><input type="checkbox" :checked="field('rainbow')?.value===1||field('rainbow')?.value===true" :disabled="disabled" @change="set('rainbow',($event.target as HTMLInputElement).checked)"/> 彩虹色</label></div>
   <div v-else-if="keybind" class="meteor-key-control"><button class="btn btn-ghost btn-sm" :class="{listening}" :disabled="disabled" @click="listening=!listening" @keydown="capture" @blur="listening=false">{{listening?'按下快捷键（Esc 取消）':bindingLabel}}</button><button class="btn btn-ghost btn-sm" :disabled="disabled" @click="set(bindKey,-1);set('modifiers',0)">清除</button></div>
-  <div v-else-if="position" class="meteor-position-control"><label v-for="axis in ['x','y','z']" :key="axis">{{axis.toUpperCase()}}<input class="input" type="number" :step="field(axis)?.type==='int'?1:'any'" :value="field(axis)?.value" :disabled="disabled" @input="set(axis,Number(($event.target as HTMLInputElement).value))"/></label></div>
+  <div v-else-if="position" class="meteor-position-control"><label v-for="axis in ['x','y','z']" :key="axis" :data-design-key="designIdentity(axis)">{{axis.toUpperCase()}}<input class="input" type="number" :step="field(axis)?.type==='int'?1:'any'" :value="field(axis)?.value" :disabled="disabled" @input="set(axis,Number(($event.target as HTMLInputElement).value))"/></label></div>
   <div v-else-if="stringList" class="meteor-list-control"><div class="list-chips"><span v-for="(entry,index) in node.children" :key="index" class="list-chip"><input :value="entry.node.value" :disabled="disabled" aria-label="列表条目" @change="entry.node.value=($event.target as HTMLInputElement).value;emit('change')"/><button class="btn btn-ghost btn-sm" :disabled="disabled" aria-label="移除此条目" @click="removeItem(index)">×</button></span><small v-if="!node.children?.length" class="muted">未选择任何条目</small></div><div class="list-add"><input v-model="newItem" class="input" placeholder="添加条目或注册表 ID" :disabled="disabled" @keydown.enter.prevent="addItem"/><button class="btn btn-ghost btn-sm" :disabled="disabled||!newItem.trim()" @click="addItem">添加</button></div></div>
 </template>
 <style scoped>
