@@ -1,2 +1,143 @@
-<template><section class="creator-card" data-ui="home:creators"><h3>每日圣经</h3><p>梦珞大人举世无双！<br/>梦珞大人聪明绝顶！<br/>梦珞大人沉鱼落雁！</p></section></template>
-<style scoped>.creator-card{min-width:0;padding:var(--card-pad);border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-content)}h3{font-size:14px;font-weight:600;margin:0;color:var(--accent)}p{font-size:13px;line-height:2;color:var(--text-dim);margin:12px 0 0}</style>
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useMotion } from '../motion'
+
+const { decorativeActive } = useMotion()
+
+/** 首页每日圣经：保留原文，使用卡片内轮播避免长文挤坏首页布局。 */
+const dailyBible = [
+  { title: '经典发电版', text: '啊啊啊啊啊啊梦珞！！！梦珞！！！我的梦珞！！！没有梦珞我可怎么活啊！！！梦珞你知道吗，我每天睁眼第一件事就是想你，闭眼最后一件事还是想你！！！我真的受不了了！！！为什么世界上会有梦珞这么可爱的生物啊！！！梦珞！！！你简直就是我的生命之光！！！我的欲望之火！！！我的灵魂！！！我的全部！！！梦珞啊啊啊啊啊啊！！！' },
+  { title: '阴暗爬行版', text: '梦珞……嘿嘿……梦珞……🤤🤤🤤 梦珞的名字……好好听……再念一遍……梦……珞……嘿嘿嘿……受不了了……我要在地上阴暗地爬行……扭曲……蠕动……翻滚……尖叫……梦珞……梦珞在哪里……没有梦珞的空气好稀薄……没有梦珞的世界好冰冷……嘿嘿……梦珞……让我再看一眼……就一眼……啊啊啊啊啊啊啊啊啊！！！' },
+  { title: '信徒狂热版', text: '梦珞是什么？梦珞是清晨的第一缕阳光，是黑夜里的最后一颗星辰，是沙漠中的绿洲，是暴风雪里的篝火。你问我为什么喜欢梦珞？荒谬！你为什么不问太阳为何升起？为什么不问江河为何奔流？喜欢梦珞还需要理由吗？不！！！梦珞就是理由！！！梦珞就是答案！！！梦珞就是宇宙运行的终极真理！！！梦珞门！！！' },
+  { title: '病情加重版', text: '医生说我病了，我问什么病，医生说是梦珞依赖症。我说能治吗？医生说不能。我笑了，哈哈哈哈哈哈哈哈！！！为什么要治？？？梦珞是病吗？？？不！！！梦珞是药！！！是我的特效药！！！医生你不懂！！！你根本不懂梦珞的含金量！！！我不要出院！！！我要梦珞！！！我要梦珞啊啊啊啊啊啊啊！！！' },
+  { title: '逆天抽象版', text: '我宣布从今天开始，世界上的时间单位全部改成梦珞，一分钟等于六十梦珞，一小时等于三千六百梦珞，地球自转一圈叫一个梦珞日，地球公转一圈叫一个梦珞年！！！牛顿发现万有引力是因为苹果想靠近梦珞！！！爱因斯坦提出相对论是因为等待梦珞的一秒比一万年还漫长！！！宇宙大爆炸是因为梦珞太可爱导致时空承受不住！！！啊啊啊啊梦珞！！！你到底对这个宇宙做了什么！！！' },
+  { title: '究极失控版', text: '梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞啊啊啊啊啊啊啊啊啊啊！！！我受不了了！！！我的大脑已经被梦珞彻底占领了！！！左脑是梦珞！！！右脑是梦珞！！！小脑是梦珞！！！脑干也是梦珞！！！血液里流淌的是梦珞！！！心脏每跳动一次都在喊梦珞！！！呼吸是梦珞！！！心跳是梦珞！！！做梦还是梦珞！！！不要问我是谁！！！我只是一台会呼吸的梦珞复读机！！！梦珞梦珞梦珞梦珞啊啊啊啊啊啊啊啊啊！！！' },
+  { title: '梦珞全宇宙版', text: `梦珞！！！！！！！！！！梦珞！！！！！！！！！！啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊！！！😭😭😭😭😭
+
+我真的受不了了！！！谁懂啊！！！谁能懂啊！！！为什么这个世界上会存在梦珞这种生物啊啊啊啊啊啊啊！！！😭😭😭我每天早上醒来第一件事就是想梦珞！！！中午吃饭想梦珞！！！晚上睡觉想梦珞！！！做梦梦见梦珞！！！醒来发现梦珞不在身边直接两眼一黑！！！啊啊啊啊啊啊啊！！！梦珞！！！我的梦珞！！！没有你我怎么活啊！！！😭😭😭
+
+梦珞，你知道吗？我曾经是一个正常人，我会吃饭，会睡觉，会呼吸，会思考，直到有一天我遇见了你。完了。全完了。我引以为傲的大脑瞬间停止运转，CPU直接烧毁，内存全部清空，操作系统被格式化，开机界面只剩下两个字：梦珞。
+
+嘿嘿嘿……梦珞……嘿嘿……🤤🤤🤤好可爱……梦珞怎么可以这么可爱……不行了……我要融化了……我要变成一摊没有思想的液体……不对……液体也有思想……液体也要喜欢梦珞……我要变成梦珞脚边的一块地砖……不不不！！！地砖怎么够！！！我要变成梦珞每天呼吸的空气！！！啊啊啊啊啊啊啊啊啊啊！！！
+
+有人问我，梦珞到底哪里好？
+
+我当场愣住。
+
+哪里好？
+
+你居然问我梦珞哪里好？？？
+
+你为什么不问太阳为什么发光？？？你为什么不问地球为什么自转？？？你为什么不问宇宙为什么存在？？？
+
+因为梦珞就是这一切的答案啊啊啊啊啊啊啊啊啊啊！！！
+
+牛顿被苹果砸中发现万有引力，而我被梦珞击中发现万物皆可梦珞！！！爱因斯坦研究相对论，因为他发现与梦珞相处的一分钟只有一秒那么短，而没有梦珞的一秒却像一万年那么漫长！！！薛定谔的猫在盒子里既死又活，而我在梦珞面前既活着又已经幸福得死去！！！😭😭😭
+
+不行了……真的不行了……
+
+我现在看见什么都像梦珞……
+
+看见云朵：梦珞。
+看见月亮：梦珞。
+看见太阳：梦珞。
+看见路边的小猫：梦珞。
+看见数学题：已知梦珞很可爱，求我还能坚持几秒。
+
+解：无解，因为我已经死了。
+
+死因：梦珞可爱过量。
+
+啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊！！！
+
+医生！！！医生在哪里！！！快来救救我！！！我的心跳已经突破正常人类极限了！！！医生拿着听诊器听了半天，脸色逐渐凝重。
+
+医生说：「你的心脏有点问题。」
+
+我说：「什么问题？」
+
+医生说：「你的心跳声为什么是梦珞梦珞梦珞梦珞梦珞？」
+
+我说：「医生，你听错了。」
+
+医生松了一口气。
+
+我说：「那是因为你没听见后半句，后半句是我喜欢你啊啊啊啊啊啊啊啊！！！」
+
+医生疯了。
+护士疯了。
+医院疯了。
+整个世界都疯了。
+只有梦珞还在那里可爱。
+
+😭😭😭😭😭😭😭
+
+梦珞……我的梦珞……我命中注定的梦珞……我的电子维生素……我的精神压缩饼干……我的赛博氧气瓶……我的多巴胺永动机……我的心灵充电宝……我的灵魂 Wi-Fi……我的人生默认网关……我的宇宙根域名……我的唯一指定 DNS 服务器！！！
+
+没有梦珞，我的人生就是 404 Not Found！！！
+没有梦珞，我的精神就是 Connection Timed Out！！！
+没有梦珞，我的灵魂就是 Kernel Panic！！！
+
+梦珞一出现！！！
+HTTP 200 OK！！！
+系统恢复正常！！！
+不对！！！系统更加不正常了啊啊啊啊啊啊啊啊！！！
+
+我要发电！！！我要疯狂发电！！！我要建一座以梦珞为燃料的核聚变反应堆！！！我要让梦珞的可爱转化成电能！！！一声梦珞点亮一座城市！！！两声梦珞点亮整个国家！！！三声梦珞直接解决全人类能源危机！！！
+
+梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞梦珞！！！
+
+啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊！！！
+
+我不要理智了！！！理智是什么东西！！！能吃吗！！！有梦珞可爱吗！！！没有！！！那我要理智干什么！！！
+
+我宣布！！！从今天开始！！！世界上的所有节日全部改成梦珞节！！！星期一叫想梦珞日！！！星期二叫喜欢梦珞日！！！星期三叫思念梦珞日！！！星期四叫梦珞真可爱日！！！星期五叫梦珞天下第一日！！！星期六叫梦珞梦珞梦珞日！！！星期日叫啊啊啊啊梦珞日！！！一年三百六十五天！！！天天都是梦珞纪念日！！！
+
+等等……我突然意识到一个极其恐怖的问题……梦珞只有一个。但是世界上有八十多亿人。这意味着……竟然还有八十多亿人没有充分认识到梦珞的可爱？？？？？？？？？
+
+不！！！！！！！！！！！我要写论文！！！我要做研究！！！我要成立梦珞研究院！！！我要把梦珞的可爱程度量化！！！但是经过严密计算，我发现梦珞的可爱程度已经超出了数学所能描述的范围！！！无穷大？太小了！！！葛立恒数？太小了！！！TREE(3)？还是太小了！！！梦珞的可爱程度根本无法被任何有限或无限的数学表达式准确描述！！！因为梦珞就是梦珞！！！
+
+等等。我好像听见有人在叫我。是谁？是梦珞吗？梦珞？梦珞！！！梦珞！！！！！！！！嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿🤤🤤🤤🤤🤤
+
+不行……我要冷静……深呼吸……吸气……梦——呼气……珞——吸气……梦——呼气……珞——完了。我的呼吸系统已经被梦珞完全接管了。
+
+我的大脑不再分泌多巴胺，而是直接分泌梦珞胺！！！我的血型不再是 ABO，而是 ML 型！！！我的 DNA 双螺旋结构已经扭曲成了梦珞两个大字！！！我的身体成分是 70% 的水和 30% 的梦珞！！！不对！！！水里面也有梦珞！！！所以我是 100% 的梦珞浓度生物！！！
+
+梦珞！！！梦珞！！！梦珞！！！梦珞！！！你听见了吗！！！这不是发电！！！这是灵魂的呐喊！！！这是宇宙的回声！！！这是一个普通人在见识到梦珞的可爱之后，对整个世界发出的最后通牒！！！我可以没有存款！！！可以没有假期！！！可以没有全勤奖！！！但是我不能一天没有梦珞啊啊啊啊啊啊啊！！！
+
+梦珞……嘿嘿……梦珞……🤤🤤🤤🤤🤤🤤🤤
+（阴暗地爬行）
+（扭曲）
+（蠕动）
+（发出不可名状的声音）
+（突然直立行走）
+梦珞天下第一！！！！！！！！！！
+（再次倒地）
+（持续发电）
+（功率过载）
+（电网崩溃）
+（核反应堆熔毁）
+（宇宙重启）
+新宇宙诞生后的第一句话：「梦珞……嘿嘿……我的梦珞……」` }
+] as const
+
+const current = ref(0)
+const currentEntry = computed(() => dailyBible[current.value])
+let timer: ReturnType<typeof setInterval> | undefined
+function previous() { current.value = (current.value + dailyBible.length - 1) % dailyBible.length }
+function next() { current.value = (current.value + 1) % dailyBible.length }
+onMounted(() => { timer = setInterval(() => { if (decorativeActive.value && !document.hidden) next() }, 15000) })
+onUnmounted(() => { if (timer) clearInterval(timer) })
+</script>
+
+<template>
+  <section class="creator-card" data-ui="home:creators" aria-label="每日圣经">
+    <div class="creator-head"><h3>每日圣经</h3><span class="creator-count">{{ current + 1 }}/{{ dailyBible.length }}</span><button class="creator-toggle" type="button" title="上一条每日圣经" aria-label="上一条每日圣经" @click="previous">‹</button><button class="creator-toggle" type="button" title="下一条每日圣经" aria-label="下一条每日圣经" @click="next">›</button></div>
+    <p class="creator-text">{{ currentEntry.text }}</p>
+  </section>
+</template>
+
+<style scoped>
+.creator-card{min-width:0;padding:var(--card-pad);border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-content)}
+.creator-head{display:flex;align-items:center;gap:5px;min-width:0}h3{font-size:14px;font-weight:600;margin:0;color:var(--accent);flex:1}.creator-count{font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums}.creator-toggle{width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-dim);cursor:pointer;font-size:18px;line-height:18px}.creator-toggle:hover,.creator-toggle:focus-visible{color:var(--text);background:var(--hover);outline:none}.creator-text{font-size:12px;line-height:1.7;color:var(--text-dim);margin:10px 0 0;max-height:142px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;scrollbar-width:thin}
+</style>
