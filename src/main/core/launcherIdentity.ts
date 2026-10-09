@@ -12,6 +12,17 @@ let applied = ''
 let requestedKey = ''
 const pending = new Map<string, Promise<LauncherIdentity>>()
 const assets = () => path.join(__dirname, 'identity-assets')
+function prepareStartupAvatar(avatar: string): void {
+  try {
+    const image = nativeImage.createFromDataURL(avatar)
+    if (image.isEmpty()) return
+    const target = path.join(app.getPath('userData'), 'startup-avatar.png')
+    const temporary = target + '.tmp'
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(temporary, image.toPNG())
+    fs.renameSync(temporary, target)
+  } catch { /* 启动动画头像缓存失败时继续使用内置 HT_T 头像 */ }
+}
 function fallback(): LauncherIdentity {
   return { accountId: null, username: 'HT_T', skin: 'data:image/png;base64,' + fs.readFileSync(path.join(assets(), 'htt-skin.png')).toString('base64'), avatar: nativeImage.createFromPath(path.join(assets(), 'htt-avatar.png')).toDataURL(), variant: 'classic', fallback: true }
 }
@@ -53,6 +64,7 @@ export async function readLauncherIdentity(): Promise<LauncherIdentity> {
   // A late profile fetch cannot replace the icon of a newer account selection.
   if (key !== keyOf()) return readLauncherIdentity()
   apply(identity)
+  prepareStartupAvatar(identity.avatar)
   prepareAvatarFileIcon(identity.avatar)
   return identity
 }

@@ -54,8 +54,18 @@ sealed class StartupFeedback : Form {
         signal=done;parentId=pid;AutoScaleMode=AutoScaleMode.None;
         FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;TopMost=true;
         StartPosition=FormStartPosition.Manual;Bounds=Screen.PrimaryScreen.Bounds;
-        using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("face.png"))
-        using(var source=new Bitmap(stream))face=new Bitmap(source);
+        Bitmap accountFace=null;
+        try {
+            string appData=Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            foreach(string candidate in new[]{Path.Combine(appData,"miaocl","startup-avatar.png"),Path.Combine(appData,"MiaoCL","startup-avatar.png")}){
+                if(!File.Exists(candidate))continue;
+                using(var loaded=new Bitmap(candidate))accountFace=new Bitmap(loaded);
+                break;
+            }
+        } catch { accountFace=null; }
+        if(accountFace!=null) face=accountFace;
+        else using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("face.png"))
+            using(var source=new Bitmap(stream))face=new Bitmap(source);
         bool animation=true;bool queried=SystemParametersInfo(0x1042,0,ref animation,0);reduced=queried&&!animation;
     }
     protected override bool ShowWithoutActivation{get{return true;}}
