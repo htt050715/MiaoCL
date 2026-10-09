@@ -306,7 +306,12 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
     accounts.addOffline(String(username ?? ''))
   )
   ipcMain.handle(IPC.accountsRemove, (_e, id: string) => accounts.removeAccount(id))
-  ipcMain.handle(IPC.accountsSelect, (_e, id: string) => accounts.selectAccount(id))
+  ipcMain.handle(IPC.accountsSelect, (_e, id: string) => {
+    const account = accounts.selectAccount(id)
+    // Update native icons even if the account page is left before its watcher runs.
+    if (account) void readLauncherIdentity().catch(() => {})
+    return account
+  })
   ipcMain.handle(IPC.accountsSelected, () => accounts.selectedAccountPublic())
   ipcMain.handle(IPC.accountsMsBegin, () =>
     accounts.beginMsDeviceCode((account, error) =>

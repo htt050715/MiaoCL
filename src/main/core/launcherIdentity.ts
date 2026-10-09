@@ -5,6 +5,7 @@ import { listAccounts, selectedAccountPublic } from './accounts'
 import { getSettings } from './settings'
 import { getProfile } from './skins'
 import { displayAccount, skinHeadBitmap, type LauncherIdentity } from '../../shared/launcherIdentity'
+import { prepareAvatarFileIcon } from './avatarFileIcon'
 
 let window: BrowserWindow | null = null
 let applied = ''
@@ -52,5 +53,6 @@ export async function readLauncherIdentity(): Promise<LauncherIdentity> {
   // A late profile fetch cannot replace the icon of a newer account selection.
   if (key !== keyOf()) return readLauncherIdentity()
   apply(identity)
+  prepareAvatarFileIcon(identity.avatar)
   return identity
 }

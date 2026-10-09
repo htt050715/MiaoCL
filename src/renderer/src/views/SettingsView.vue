@@ -779,7 +779,7 @@ async function onRemovePlugin(p: PluginInfo) {
         <label class="switch"><input type="checkbox" aria-label="UI 窗口自适应" :checked="store.settings.uiWindowAutoFit === true" :disabled="windowFitBusy" @change="changeWindowFit" /><span class="switch-ui" /></label>
       </div>
     <div v-if="store.settings && category === 'appearance'" class="card group" data-ui="identity:settings">
-      <h3 class="group-title">账号外观</h3><p class="muted">头像、左上角小人和运行中的启动器图标使用同一账号。默认跟随当前账号；未登录时使用 HT_T。</p>
+      <h3 class="group-title">账号外观</h3><p class="muted">切换账号后，头像、左上角小人、窗口和任务栏图标自动同步。默认跟随当前账号；未登录时使用 HT_T。</p><p class="muted">Windows 便携 EXE 的文件图标会在退出启动器后同步为最后选定的头像；正在运行的文件被系统锁定。</p>
       <div class="group-inline"><div><strong>展示账号</strong><p class="muted">当前显示：{{launcherIdentity.username}}{{launcherIdentity.fallback?' · 使用 HT_T 备用皮肤':''}}</p><p class="muted">选择展示账号不会改变进入游戏使用的账号。移除展示账号后自动跟随当前账号。</p></div><SelectMenu data-ui="identity:account-select" :model-value="displayAccountChoice" :options="displayAccountOptions" @change="id=>save({displayAccountId:id})" /></div>
       <div class="group-inline"><div><strong>左上角玩家皮肤小人</strong><p class="muted">开启后用所选账号的皮肤模型替代头像，默认关闭。</p></div><label class="switch" data-ui="identity:model-toggle"><input type="checkbox" aria-label="左上角玩家皮肤小人" :checked="store.settings.playerSkinLogo === true" @change="save({ playerSkinLogo: ($event.target as HTMLInputElement).checked })"/><span class="switch-ui"/></label></div>
     </div>
