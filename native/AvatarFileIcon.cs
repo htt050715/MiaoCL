@@ -100,8 +100,14 @@ static class AvatarFileIcon {
                 for(int i=0;i<probe.Length;i++)Check(probe[i]==original[i],"Executable replaced during avatar update");
             }
             File.Replace(staged,target,null);
-            SHChangeNotify(0x00002000,0x0005,target,IntPtr.Zero); // UPDATEITEM, PATHW
-            SHChangeNotify(0x00001000,0x0005,Path.GetDirectoryName(target),IntPtr.Zero);
+            SHChangeNotify(0x00002000,0x2005,target,IntPtr.Zero); // UPDATEITEM, PATHW|FLUSH
+            SHChangeNotify(0x00001000,0x2005,Path.GetDirectoryName(target),IntPtr.Zero);
+            SHChangeNotify(0x08000000,0,null,IntPtr.Zero); // ASSOCCHANGED: invalidate Explorer's icon cache
+            try { var refresh = Process.Start(new ProcessStartInfo {
+                FileName=Path.Combine(Environment.SystemDirectory,"ie4uinit.exe"),
+                Arguments="-show", UseShellExecute=false, CreateNoWindow=true,
+                WindowStyle=ProcessWindowStyle.Hidden
+            }); if(refresh!=null) refresh.Dispose(); } catch { /* Explorer may refresh on its own. */ }
             return true;
         } finally {if(File.Exists(staged))File.Delete(staged);}
     }
