@@ -4,18 +4,18 @@ const asar = require('asar')
 function verifyWindowsRuntime(appOutDir) {
   const archive = path.join(appOutDir, 'resources/app.asar')
   const names = asar.listPackage(archive).map(n => n.replaceAll('\\', '/').replace(/^\//, ''))
-  // 1.1.7 intentionally adds seven lossless user-provided illustrations (~10 MiB).
-  // Verify those exact assets separately; keep the existing 16 MiB code/dependency budget.
+  // Verify HTT's supplied PNG separately; keep the existing code/dependency budget.
   const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex')
   let illustrationBytes = 0
-  for (const id of ['piston', 'brewer', 'cannon', 'cactus', 'farmer', 'camp', 'sunset']) {
-    const matches = names.filter(name => new RegExp('^out/renderer/assets/' + id + '-[^/]+\\.webp$').test(name))
+  for (const id of ['miaocl-cat']) {
+    const matches = names.filter(name => new RegExp('^out/renderer/assets/' + id + '-[^/]+\\.png$').test(name))
     assert.equal(matches.length, 1, 'Exactly one bundled illustration: ' + id)
     const bytes = asar.extractFile(archive, matches[0].split('/').join(path.sep))
-    const source = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/assets/launch', id + '.webp'))
+    const source = fs.readFileSync(path.resolve(__dirname, '../src/renderer/src/assets/launch', id + '.png'))
     assert.equal(digest(bytes), digest(source), 'Bundled illustration changed: ' + id)
     illustrationBytes += bytes.length
   }
+  assert(!names.some(name => /\/assets\/(piston|brewer|cannon|cactus|farmer|camp|sunset)-[^/]+\.webp$/.test(name)), 'Removed launch illustrations must not be packaged')
   assert(illustrationBytes < 11 * 1024 * 1024, 'Illustrations exceed reviewed 11 MiB budget')
   assert(fs.statSync(archive).size - illustrationBytes < 16 * 1024 * 1024, 'Application code/dependencies exceed 16 MiB: review payload growth before release')
   for (const name of names) {

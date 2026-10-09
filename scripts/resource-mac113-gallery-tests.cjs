@@ -26,7 +26,7 @@ test('Original decoding and complete ordered playlist assertions remain mandator
  const f=fixture();f.show(2);let s=f.read();s.images[0].complete=false;assert.throws(()=>verifyRetainedCarousel(s,f.playlist.map(p=>p.path)),/decode/)
  s=f.read();s.images[0].naturalWidth=0;assert.throws(()=>verifyRetainedCarousel(s,f.playlist.map(p=>p.path)),/decode/)
  assert.throws(()=>verifyRetainedCarousel(f.read(),[...f.playlist.map(p=>p.path)].reverse()),/exact saved order/)
- const source=require('node:fs').readFileSync(require.resolve('./verify-gallery-favorites-ui.cjs'),'utf8');assert(source.includes('rotationStarted<15000'));assert(source.includes('all eight logical images must rotate'));assert(!source.includes('hero.__vueParentComponent'))
+ const source=require('node:fs').readFileSync(require.resolve('./verify-gallery-favorites-ui.cjs'),'utf8');assert(source.includes('rotationStarted<15000'));assert(source.includes('all enabled logical images must rotate'));assert(!source.includes('hero.__vueParentComponent'))
 })
 
 const readinessState=(at=0)=>({mounted:new Map(),previousRequestStartedAt:at,previousObservedAt:at,initialSource:null,initialDecoded:false})

@@ -101,7 +101,7 @@ app.whenReady().then(async () => {
     const appearance = require('../src/main/core/appearanceAssets.ts')
     const settings = require('../src/main/core/settings.ts')
     const gallery = []
-    for (const name of ['piston.webp', 'brewer.webp']) {
+    for (const name of ['miaocl-cat.png', 'miaocl-cat.png']) {
       gallery.push((await appearance.importGlobalImage(path.resolve('src/renderer/src/assets/launch', name), 'launch-thumbnail')).path)
     }
     settings.saveSettings({ launchThumbnail: { images: gallery, image: gallery[0], fit: 'crop' } })
@@ -112,7 +112,7 @@ app.whenReady().then(async () => {
     assert.deepEqual(settings.getSettings().launchThumbnail.images, [...gallery].reverse())
     settings.saveSettings({ launchThumbnail: { images: [gallery[0]], image: gallery[0], fit: 'crop' } })
     assert(!fs.existsSync(gallery[1]))
-    assert(fs.existsSync(path.resolve('src/renderer/src/assets/launch/brewer.webp')))
+    assert(fs.existsSync(path.resolve('src/renderer/src/assets/launch/miaocl-cat.png')))
     console.log('PASS_GALLERY_IMPORT_PERSIST_REORDER_REMOVE_ORIGINAL_PRESERVED')
   } catch (error) { console.error('QA_FAILED=' + (error.stack ?? error)); process.exitCode = 1 }
   finally {

@@ -1,7 +1,7 @@
 {
   "name": "miaocl",
   "productName": "MiaoCL",
-  "version": "1.1.31",
+  "version": "1.1.32",
   "description": "MiaoCL - Minecraft 启动器与客户端参数管理",
   "homepage": "https://github.com/htt050715/MiaoCL",
   "main": "out/main/index.js",
