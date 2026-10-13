@@ -427,6 +427,7 @@ export const pauseTask = (taskId: string) => invoke<boolean>(IPC.tasksPause, tas
 export const resumeTask = (taskId: string) => invoke<boolean>(IPC.tasksResume, taskId)
 
 /** 导出启动失败日志包（弹系统保存对话框），返回保存路径（取消 = null） */
+export const copyErrorReport = (text: string) => invoke<void>(IPC.launchCopyError, text)
 export const exportLaunchLogs = (versionId: string, folder?: string) =>
   invoke<string | null>(IPC.launchExportLogs, versionId, folder)
 

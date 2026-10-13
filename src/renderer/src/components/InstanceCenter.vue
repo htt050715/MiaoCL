@@ -5,13 +5,21 @@ import type { BackupManifest, DiagnosticFinding, InstanceOperation, InstanceOver
 import type { ModChangePlan } from '@shared/modManagement'
 import { instanceCenter } from '../instanceCenter'
 import { store, refreshInstalled, toast, openSettings } from '../store'
-import { errText, setVersionJava, exportLaunchLogs, selectFile, probeWorld, importWorld } from '../api'
+import { copyErrorReport, errText, setVersionJava, exportLaunchLogs, selectFile, probeWorld, importWorld } from '../api'
 import SelectMenu from './SelectMenu.vue'
 const previousFocus=document.activeElement as HTMLElement|null
 const target=structuredClone({...instanceCenter.target!})
 const tab=ref(instanceCenter.tab),busy=ref(false),loading=ref(true),error=ref(''),overview=ref<InstanceOverview>()
 const worlds=ref<InstanceWorld[]>([]),backups=ref<BackupManifest[]>([]),shots=ref<InstanceScreenshot[]>([]),shotTotal=ref(0),page=ref(0),search=ref(''),lightbox=ref(-1)
 const findings=ref<DiagnosticFinding[]>([]),java=ref<JavaInfo[]>([]),javaPath=ref(''),planId=ref(''),session=ref('')
+const copyingError=ref(false)
+async function copyDiagnosticError(){
+ if(copyingError.value)return
+ copyingError.value=true
+ try{await copyErrorReport([`实例：${target.id}`,session.value?`日志会话：${formatDate(session.value)}`:'',...findings.value.map(f=>[f.title,f.evidence,f.advice].join('\n'))].filter(Boolean).join('\n\n'));toast('错误信息已复制','success')}
+ catch(e){toast('复制失败：'+errText(e),'error')}
+ finally{copyingError.value=false}
+}
 const form=ref<''|'clone'|'restore'|'import'|'disable'|'dependencies'>(''),name=ref(''),destination=ref(target.folder),includeSaves=ref(true),includeShots=ref(false),restore=ref<BackupManifest>(),overwrite=ref(false)
 const dependencies=ref<ModChangePlan>()
 const selectedMods=ref<string[]>([])
@@ -86,7 +94,8 @@ onUnmounted(()=>{document.removeEventListener('keydown',key,true);previousFocus?
       </div>
       <button v-if="selectedMods.length" class="btn btn-gold" :disabled="busy||overview?.running" @click="form='disable'">停用选中的 {{selectedMods.length}} 个模组…</button>
       <div v-if="findings.some(f=>f.action==='java')" class="ic-card"><h3>选择适配 Java</h3><SelectMenu v-model="javaPath" :options="java.map(j=>({value:j.path,label:'Java '+j.major+' · '+j.path}))" placeholder="尚未发现兼容运行时"/><div class="ic-actions"><button class="btn btn-gold" :disabled="busy||!javaPath||overview?.running" @click="perform(()=>setVersionJava(target.id,javaPath,false,target.folder))">为此实例应用</button><button class="btn btn-ghost" @click="close();openSettings('java')">管理 Java</button></div></div>
-      <button class="btn btn-ghost" :disabled="busy" @click="perform(()=>exportLaunchLogs(target.id,target.folder))">导出脱敏诊断日志</button>
+       <button data-ui="instance-diagnostics:copy-error" class="btn btn-ghost" :disabled="busy||copyingError||!findings.length" @click="copyDiagnosticError">{{copyingError?'复制中…':'一键复制错误'}}</button>
+       <button class="btn btn-ghost" :disabled="busy" @click="perform(()=>exportLaunchLogs(target.id,target.folder))">导出脱敏诊断日志</button>
      </template>
      <p v-if="busy" class="ic-hint" role="status">任务正在执行。进度及取消入口位于下载中心，关闭本页面不会取消任务。</p>
     </div>

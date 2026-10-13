@@ -4,7 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { app, dialog, type BrowserWindow } from 'electron'
+import { app, clipboard, dialog, type BrowserWindow } from 'electron'
 import { getSettings } from './settings'
 import { gameDir } from './paths'
 import { readVersionJson, listAllInstalled } from './versions'
@@ -28,10 +28,19 @@ import {
 
 const execFileAsync = promisify(execFile)
 
+/** 复制当前错误与相关日志，沿用诊断包的脱敏规则。 */
+export function copyErrorReport(text: string): void {
+  if (typeof text !== 'string' || !text.trim()) throw new Error('暂无可复制的错误信息')
+  const account = selectedAccount()
+  const secrets = [account?.accessToken, account?.refreshToken, account?.clientToken, account?.loginIdentifier]
+    .filter((value): value is string => Boolean(value))
+  clipboard.writeText(redactDiagnosticText(`MiaoCL ${app.getVersion()} 错误报告\n\n${text}`, secrets))
+}
+
 export interface DiagnosticManifest {
   schemaVersion: 1
   exportedAt: string
-  launcher: { name: 'KAMUCL'; version: string }
+  launcher: { name: 'MiaoCL'; version: string }
   instance: {
     id: string
     name: string
@@ -113,9 +122,9 @@ async function javaSummary(
 function summaryText(manifest: DiagnosticManifest): string {
   const m = manifest
   return [
-    '================ KAMUCL 启动失败诊断摘要 ================',
+    '================ MiaoCL 启动失败诊断摘要 ================',
     `导出时间: ${m.exportedAt}`,
-    `KAMUCL: ${m.launcher.version}`,
+    `MiaoCL: ${m.launcher.version}`,
     `操作系统: ${m.operatingSystem.platform} ${m.operatingSystem.release} (${m.operatingSystem.architecture})`,
     '',
     `实例: ${m.instance.name} [${m.instance.id}]`,
@@ -170,7 +179,7 @@ export async function exportLaunchLogs(
       : directoryState.path
   const isolated = directoryState.isolated
   const now = new Date()
-  const defName = `KAMUCL-Diagnostic-${safeDiagnosticFilePart(item?.mcVersion || vid)}-${fmtStamp(now)}.zip`
+  const defName = `MiaoCL-Diagnostic-${safeDiagnosticFilePart(item?.mcVersion || vid)}-${fmtStamp(now)}.zip`
   const opts = {
     title: '导出错误日志',
     defaultPath: defName,
@@ -190,7 +199,7 @@ export async function exportLaunchLogs(
   const manifest: DiagnosticManifest = {
     schemaVersion: 1,
     exportedAt: now.toISOString(),
-    launcher: { name: 'KAMUCL', version: app.getVersion() },
+    launcher: { name: 'MiaoCL', version: app.getVersion() },
     instance: {
       id: vid,
       name: item?.modpackName || vid,

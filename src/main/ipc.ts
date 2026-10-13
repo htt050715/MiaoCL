@@ -86,7 +86,7 @@ import {
   pauseTask,
   resumeTask
 } from './core/tasks'
-import { exportLaunchLogs } from './core/exportLogs'
+import { copyErrorReport, exportLaunchLogs } from './core/exportLogs'
 import { ProgressEventGuard } from './core/progress'
 import { launcherLogDebug, launcherLogError, launcherLogInfo, launcherLogWarn } from './core/launcherLog'
 import * as gameFolders from './core/gameFolders'
@@ -836,6 +836,7 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
   ipcMain.handle(IPC.gameRestart, (_e, versionId: string, folder: string, forceToken?: string) => launch.restartGame(versionId, folder, forceToken))
   ipcMain.handle(IPC.gameRestartCancel, () => launch.cancelRestart())
   // 导出启动失败日志包（保存对话框在 main 弹出）
+  ipcMain.handle(IPC.launchCopyError, (_e, text: string) => copyErrorReport(text))
   ipcMain.handle(IPC.launchExportLogs, (_e, versionId: string, folder?: string) =>
     withGameFolder(folder || folderOfVersion(versionId), () => exportLaunchLogs(getWin(), String(versionId ?? '')))
   )

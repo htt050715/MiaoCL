@@ -833,6 +833,7 @@ export const IPC = {
   // 游戏
   gameLaunch: 'game:launch', // (versionId: string, serverAddress?: string) => void  带 serverAddress 时用 --quickPlayMultiplayer 直接进服
   gameLaunchCancel: 'game:launchCancel', // (versionId?: string, folder?: string) => boolean
+  launchCopyError: 'launch:copyError', // (text: string) => void  脱敏后复制错误报告
   launchExportLogs: 'launch:exportLogs', // (versionId: string) => string | null  弹保存对话框导出启动失败日志包（取消 = null）
   gameKill: 'game:kill', // () => void
   gameRestart: 'game:restart',

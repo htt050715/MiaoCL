@@ -8,6 +8,7 @@ import { CarouselPlayback } from '@shared/carouselPlayback'
 import {
   errText,
   exportLaunchLogs,
+  copyErrorReport,
   getSkinProfile,
   getSettings,
   launchGame,
@@ -286,6 +287,17 @@ async function exportFailureLogs() {
   } finally {
     exportingLogs.value = false
   }
+}
+
+const copyingError = ref(false)
+async function copyFailureError() {
+  if (copyingError.value) return
+  copyingError.value = true
+  try {
+    await copyErrorReport([`实例：${store.launchingVersionId || selectedId.value}`, heroStatus.value.text, ...store.logs].join('\n'))
+    toast('错误信息已复制', 'success')
+  } catch (error) { toast('复制失败：' + errText(error), 'error') }
+  finally { copyingError.value = false }
 }
 
 // ---------------- Java 与内存摘要 ----------------
@@ -733,7 +745,7 @@ onUnmounted(() => {
           </header>
           <div data-ui="HomeView:1921d3d812a6" v-if="launchFailed" class="log-failure">
             <span>检测到启动失败或异常退出</span>
-            <button data-ui="HomeView:4e02813325fa" :disabled="exportingLogs" @click="exportFailureLogs">{{ exportingLogs ? '导出中…' : '导出错误日志' }}</button>
+            <div class="log-failure-actions"><button data-ui="launch-log:copy-error" :disabled="copyingError" @click="copyFailureError">{{ copyingError ? '复制中…' : '一键复制错误' }}</button><button data-ui="HomeView:4e02813325fa" :disabled="exportingLogs" @click="exportFailureLogs">{{ exportingLogs ? '导出中…' : '导出错误日志' }}</button></div>
           </div>
           <div data-ui="HomeView:d816343842fa" ref="logBody" class="log-body">
             <p data-ui="HomeView:9e34f7306c51" v-if="!store.logs.length" class="log-empty">暂无启动日志</p>
@@ -995,6 +1007,7 @@ onUnmounted(() => {
 .log-close { width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); font-size: 20px; cursor: pointer; }
 .log-close:hover { background: var(--hover); color: var(--text); }
 .log-failure { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; background: var(--danger-soft); color: var(--danger); font-size: 12px; }
+.log-failure-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .log-failure button { padding: 6px 10px; border: 1px solid var(--danger-border); border-radius: 7px; background: transparent; color: var(--danger); cursor: pointer; }
 .log-body { min-height: 220px; flex: 1; overflow: auto; padding: 14px 18px; background: color-mix(in srgb, var(--bg) 42%, transparent); user-select: text; }
 .log-body pre { display: flex; flex-direction: column; color: var(--text-dim); font: 11.5px/1.65 'Cascadia Code', Consolas, monospace; white-space: pre-wrap; word-break: break-all; }

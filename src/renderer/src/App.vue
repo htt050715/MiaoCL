@@ -21,6 +21,7 @@ import {
   cancelTask,
   errText,
   exportLaunchLogs,
+  copyErrorReport,
   formatSpeed,
   getConfigStatus,
   getSettings,
@@ -710,6 +711,16 @@ function toggleNotices() {
 
 // ---------------- 启动失败日志导出 ----------------
 const launchFail = reactive({ open: false, title: '', text: '', exporting: false })
+const copyingError = ref(false)
+async function onCopyError() {
+  if (copyingError.value) return
+  copyingError.value = true
+  try {
+    await copyErrorReport([launchFail.title, launchFail.text, `实例：${store.launchingVersionId}`, ...store.logs].join('\n'))
+    toast('错误信息已复制', 'success')
+  } catch (e) { toast('复制失败：' + errText(e), 'error') }
+  finally { copyingError.value = false }
+}
 
 async function onExportLogs() {
   if (launchFail.exporting) return
@@ -1596,6 +1607,7 @@ onUnmounted(() => {
         <div data-ui="App:b5caea38dc55" class="modal-actions">
           <button class="btn btn-ghost" @click="openInstanceCenter({id:store.launchingVersionId,folder:store.launchingFolder},'diagnostics'); launchFail.open=false">查看原因</button>
           <button data-ui="App:bbc871d022c8" class="btn btn-ghost" @click="launchFail.open = false">关闭</button>
+          <button data-ui="launch-error:copy" class="btn btn-ghost" :disabled="copyingError" @click="onCopyError">{{ copyingError ? '复制中…' : '一键复制错误' }}</button>
           <button data-ui="App:43f37fe4338f" class="btn btn-gold" :disabled="launchFail.exporting" @click="onExportLogs">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11" /><path d="m7 10 5 5 5-5" /><path d="M4 21h16" /></svg>
             {{ launchFail.exporting ? '导出中…' : '导出错误日志' }}
