@@ -37,6 +37,8 @@ import {
 import { selectInstance, applyLaunchState, displayVersionName, displayVersionSub, fmtLastPlayed, isFavorite, progressMono, refreshInstalled, renameLastPlayed, sortWithFavorite, store, toast, toggleFavorite, versionIconUrl } from '../store'
 import { instanceLaunchBusy } from '@shared/launchTracking'
 import ConfirmModal from '../components/ConfirmModal.vue'
+import ModVersionModal from '../components/ModVersionModal.vue'
+import FabricLoaderModal from '../components/FabricLoaderModal.vue'
 import IconPickerModal from '../components/IconPickerModal.vue'
 import SelectMenu from '../components/SelectMenu.vue'
 import RecordingModPicker from '../components/RecordingModPicker.vue'
@@ -67,6 +69,13 @@ const installedFolder = ref('')
 const installedError = ref('')
 const installedLoading = ref(false)
 const folderToolsOpen = ref(false)
+const fabricApiTarget = ref<InstalledVersion>()
+const fabricLoaderTarget = ref<InstalledVersion>()
+async function fabricLoaderChanged() {
+  toast('Fabric Loader 已切换，下次启动生效', 'success')
+  await refreshInstalled()
+  await refreshAllInstalled()
+}
 const installedSearch = ref('')
 const installedCategory = ref(VERSION_CATEGORY_ALL), categoryManagerOpen = ref(false), categoryBusy = ref(false), categoryError = ref('')
 const categories = computed(() => store.settings?.versionCategories ?? [])
@@ -1242,6 +1251,8 @@ async function confirmIsolation() {
         <div v-if="menuVersion" class="instance-technical" tabindex="0"><strong>{{ displayVersionName(menuVersion) }}</strong><span>实例 ID：{{ menuVersion.id }}</span><span>绑定目录：{{ menuVersion.folder }}</span><span>游戏目录：{{ menuVersion.gameDirectory || menuVersion.folder }}</span></div>
         <button v-if="menuVersion" class="menu-item" @click="openVersionFolder(menuVersion); closeManageMenu()">打开实例文件夹</button>
         <button v-if="menuVersion" class="menu-item" @click="openInstanceCenter(menuVersion); closeManageMenu()">实例设置与详情</button>
+        <button v-if="menuVersion?.loader==='fabric' && !menuVersion.incomplete && !menuVersion.failed" class="menu-item" data-ui="games:fabric-loader" @click="fabricLoaderTarget={...menuVersion};closeManageMenu()">Fabric Loader 版本管理</button>
+        <button v-if="menuVersion?.loader==='fabric' && !menuVersion.incomplete && !menuVersion.failed" class="menu-item" data-ui="games:fabric-api" @click="fabricApiTarget={...menuVersion};closeManageMenu()">Fabric API 版本管理</button>
         <label v-if="menuVersion" class="instance-category-field">所属分类<select class="select" data-ui="games:instance-category" :aria-label="displayVersionName(menuVersion) + '的所属分类'" :value="categoryOf(menuVersion)" :disabled="categoryBusy" @change="assignCategory(menuVersion, $event)"><option value="">未分类</option><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></label>
         <p v-if="categoryError" class="error instance-category-error" role="alert">{{ categoryError }}</p>
         <label v-if="menuVersion && !menuVersion.modpackName && !menuVersion.incomplete && !menuVersion.failed" class="menu-item"><input type="checkbox" :checked="!!menuVersion.isolated" :disabled="isoBusy === menuVersion.id" @change="onToggleIsolation(menuVersion, $event)" />实例隔离</label>
@@ -1285,6 +1296,8 @@ async function confirmIsolation() {
     </Teleport>
 
     <VersionCategoriesPanel :open="categoryManagerOpen" :categories="categories" :counts="categoryCounts" :busy="categoryBusy" :error="categoryError" @close="categoryManagerOpen = false" @action="onCategoryAction" />
+    <FabricLoaderModal v-if="fabricLoaderTarget" :source="fabricLoaderTarget" @close="fabricLoaderTarget=undefined" @done="fabricLoaderChanged" />
+    <ModVersionModal v-if="fabricApiTarget" :source="fabricApiTarget" fabric-api @close="fabricApiTarget=undefined" @done="toast('Fabric API 版本已切换，下次启动生效','success')" />
 
     <!-- 实例窗口设置；未覆盖时始终跟随全局配置。 -->
     <Teleport to="body">

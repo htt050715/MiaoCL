@@ -14,7 +14,7 @@ import type { ManagedMod, ModOperationResult } from '@shared/modManagement'
 import ConfirmModal from './ConfirmModal.vue'
 import DupCleanModal from './DupCleanModal.vue'
 import SelectMenu from './SelectMenu.vue'
-import type { FsEntry, ModUpdateReport } from '@shared/types'
+import type { FsEntry, InstalledVersion, ModUpdateReport } from '@shared/types'
 
 function dragResource(event: DragEvent, entry: FsEntry) {
   event.preventDefault(); event.stopPropagation()
@@ -41,6 +41,7 @@ const entries = ref<FsEntry[]>([])
 const loading = ref(true)
 const loadError = ref('')
 const opening = ref(false)
+const fabricApiTarget = ref<InstalledVersion>()
 
 // ---------------- 版本上下文（模组/资源包/光影包按游戏版本管理） ----------------
 /** 当前选中版本（默认第一个已装版本；store.resourceVersionId 三页共享） */
@@ -333,6 +334,7 @@ function toggleUpdateSelect(fileName: string, checked: boolean) {
     <header class="fm-head">
       <div data-ui="FileManager:9ace27a3aaa9" class="page-head fm-head-left"><h1 data-ui="FileManager:72e6bc71f100" class="page-title">{{ props.title }} <small v-if="currentVersion && !loading">{{ resourceCount }}</small></h1></div>
       <div data-ui="FileManager:7a94152a1114" class="fm-actions">
+        <button v-if="props.rel==='mods' && currentVersion?.loader==='fabric'" class="btn btn-ghost" data-ui="mods:fabric-api" :disabled="batchBusy" @click="fabricApiTarget={...currentVersion}">Fabric API 版本</button>
         <button v-if="props.rel === 'mods'" class="btn btn-gold" :disabled="updatePanel.checking || !currentVersion" @click="onCheckUpdates">{{ updatePanel.checking ? '检测中…' : '检测更新' }}</button>
         <button class="btn" :class="props.rel === 'shaderpacks' ? 'btn-gold' : 'btn-ghost'" :disabled="opening || !currentVersion" @click="onOpenDir">{{ props.openLabel }}</button>
         <details data-ui="FileManager:4aeae736e670" v-if="props.rel === 'mods'" class="file-more" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open=false"><summary class="btn btn-ghost" aria-label="模组管理更多操作">更多</summary><div data-ui="FileManager:bd84b9640929" class="file-more-actions" @click="($event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open')"><button class="btn btn-ghost" :disabled="!currentVersion" @click="migrationOpen=true">版本迁移</button><button class="btn btn-ghost" :disabled="!currentVersion" @click="dupOpen=true">清理重复</button></div></details>
@@ -457,6 +459,7 @@ function toggleUpdateSelect(fileName: string, checked: boolean) {
       <button data-ui="FileManager:eba7aed9ee2d" class="btn btn-ghost btn-sm" :disabled="page >= pageCount" @click="page++">下一页</button>
     </nav>
     <ModVersionModal v-if="switchFile && currentVersion" :source="currentVersion" :file-name="switchFile" @close="switchFile=''" @done="load();toast('模组版本已切换','success')"/>
+    <ModVersionModal v-if="fabricApiTarget" :source="fabricApiTarget" fabric-api @close="fabricApiTarget=undefined" @done="load();toast('Fabric API 版本已切换，下次启动生效','success')"/>
     <ModMigrationModal v-if="migrationOpen && currentVersion" :source="currentVersion" @close="migrationOpen=false"/>
     <!-- 删除文件二次确认 -->
     <ConfirmModal

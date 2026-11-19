@@ -7,14 +7,14 @@ import { versionInstallHarness } from './helpers/version-install-harness'
 import type { CommunityQuery, CommunityKind } from '../src/shared/types'
 
 const query: CommunityQuery = { keyword: '', source: 'all', kind: 'resourcepack', mcVersion: '26.2', loader: 'fabric', offset: 0, limit: 20 }
-async function fixture(t: any, totals = { modrinth: 45, curseforge: 7 }, failCf = false) {
+async function fixture(t: any, totals = { modrinth: 45, curseforge: 7 }, failCf: boolean | ((params: URLSearchParams) => boolean) = false) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kamucl-browse-'))
   const urls: URL[] = []
   const runtime = await versionInstallHarness(root, async input => {
     const url = new URL(String(input)); urls.push(url)
     const mr = url.pathname.startsWith('/v2') || url.pathname.includes('/modrinth/')
-    if (!mr && failCf) return new Response('', { status: 503 })
     const search = url.searchParams
+    if (!mr && (typeof failCf === 'function' ? failCf(search) : failCf)) return new Response('', { status: 503 })
     if (url.pathname.endsWith('/search')) {
       const total = mr ? totals.modrinth : totals.curseforge
       const offset = Number(search.get(mr ? 'offset' : 'index'))
@@ -94,4 +94,20 @@ test('partial provider outage reports honest totals and an explicit warning', as
   assert.equal(page.total, 25)
   assert.equal(page.items.length, 20)
   assert(page.warnings?.[0].includes('CurseForge'))
+})
+
+test('a source failing after counting preserves the other page and retries on the next page', async t => {
+  let fail = true
+  const { runtime, urls } = await fixture(t, { modrinth: 25, curseforge: 7 }, params => fail && Number(params.get('pageSize')) > 1)
+  const first = await runtime.communitySearchPage(query)
+  assert.equal(first.total, 25)
+  assert.deepEqual(first.items.map(item => item.projectId), Array.from({ length: 20 }, (_, i) => `mr-${i}`))
+  assert(first.warnings?.some(warning => warning.includes('CurseForge 结果读取失败')))
+
+  fail = false
+  const start = urls.length
+  const second = await runtime.communitySearchPage({ ...query, offset: 20 })
+  assert.equal(second.total, 32)
+  assert.deepEqual(second.items.map(item => item.projectId), Array.from({ length: 12 }, (_, i) => `mr-${i + 13}`))
+  assert(urls.slice(start).some(url => url.searchParams.get('pageSize') === '1' && url.searchParams.get('index') === '0'))
 })

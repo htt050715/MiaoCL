@@ -100,6 +100,54 @@ test('default packs import multiple ZIPs, deduplicate, preserve sources and appl
   assert(fs.existsSync(a) && fs.existsSync(b))
 })
 
+test('wrapped default pack keeps the original cache and installs a stable root ZIP', async t => {
+  const { root, api } = await runtime(t)
+  const file = path.join(root, 'wrapped.zip'), game = path.join(root, 'game')
+  const zip = new AdmZip()
+  zip.addFile('release/', Buffer.alloc(0))
+  zip.addFile('release/pack/', Buffer.alloc(0))
+  zip.addFile('release/pack/pack.mcmeta', Buffer.from('{"pack":{"min_format":75,"description":{"text":"Test"}}}'))
+  zip.addFile('release/pack/assets/minecraft/test.txt', Buffer.from('asset'))
+  zip.writeZip(file)
+  const original = fs.readFileSync(file)
+  const [pack] = api.importDefaultResourcePacks([file])
+  const cache = path.join(root, 'default-resourcepacks', pack.id + '.zip')
+  assert(fs.readFileSync(cache).equals(original))
+  assert.equal(api.importDefaultResourcePacks([file]).length, 1)
+  assert.equal(api.syncDefaultResourcePacks(game, '1.21.11'), 1)
+  const installed = path.join(game, 'resourcepacks', `KAMUCL-default-${pack.id}-${pack.name}`)
+  const normalized = new AdmZip(installed)
+  assert(normalized.getEntry('pack.mcmeta'))
+  assert.equal(normalized.readAsText('assets/minecraft/test.txt'), 'asset')
+  assert.equal(api.syncDefaultResourcePacks(game, '1.21.11'), 1)
+  assert(fs.readFileSync(file).equals(original))
+  assert(fs.readFileSync(cache).equals(original))
+  fs.writeFileSync(installed, 'edited separately')
+  assert.throws(() => api.syncDefaultResourcePacks(game, '1.21.11'), /副本被修改/)
+  assert.equal(fs.readFileSync(installed, 'utf8'), 'edited separately')
+})
+
+test('ambiguous or unsafe wrapped packs fail before changing a valid batch', async t => {
+  const { root, api } = await runtime(t)
+  const good = path.join(root, 'good.zip')
+  pack(good, 'good')
+  for (const variant of ['multiple', 'outside', 'symlink']) {
+    const file = path.join(root, `${variant}.zip`), zip = new AdmZip()
+    const meta = Buffer.from('{"pack":{"pack_format":75}}')
+    zip.addFile('wrapped/pack.mcmeta', meta)
+    if (variant === 'multiple') zip.addFile('another/pack.mcmeta', meta)
+    if (variant === 'outside') zip.addFile('readme.txt', Buffer.from('do not drop'))
+    if (variant === 'symlink') {
+      zip.addFile('wrapped/link', Buffer.from('elsewhere'))
+      zip.getEntry('wrapped/link')!.attr = (0o120777 << 16) >>> 0
+    }
+    zip.writeZip(file)
+    assert.throws(() => api.importDefaultResourcePacks([good, file]), /多个材质包|目录以外|符号链接/)
+    assert.deepEqual(api.getDefaultResourcePacks(), [])
+    assert(!fs.existsSync(path.join(root, 'default-resourcepacks')))
+  }
+})
+
 test('invalid pack batch and malformed options preserve existing configuration', async t => {
   const { root, api } = await runtime(t)
   const good = path.join(root, 'good.zip'), bad = path.join(root, 'bad.zip'); pack(good, 'good'); new AdmZip().writeZip(bad)

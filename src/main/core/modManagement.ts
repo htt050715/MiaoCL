@@ -19,7 +19,7 @@ import { ModPlanStore } from './modPlanStore'
 const MR='https://api.modrinth.com/v2'
 async function json(url:string,body?:unknown,headers:Record<string,string>={}){const r=await httpFetch(url,{method:body?'POST':'GET',headers:{'User-Agent':'KAMUCL (github.com/kamubaba-i/KAMUCL)','Content-Type':'application/json',...headers},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error('社区请求失败 HTTP '+r.status);return r.json() as Promise<any>}
 export async function assertModsIdle(dir:string){const running=getRunningVersionIds();for(const v of listAllInstalled().filter(v=>running.has(v.id))){const other=await resolveResourceDirectory(v.folder||gameDir(),v.id,'mods');if(path.resolve(other).toLowerCase()===path.resolve(dir).toLowerCase())throw new Error('使用该模组目录的游戏正在运行，请先退出游戏')}}
-export async function modCatalog(versionId:string,folder:string):Promise<ManagedMod[]>{const dir=await resolveResourceDirectory(folder,versionId,'mods');const entries=await scanManagedModDirectory(dir,'catalog');return entries.map(i=>({fileName:i.fileName,name:i.name||i.fileName,version:i.version||'',sha1:i.sha1,fingerprint:i.fingerprint,identity:i.sha1?modIdentity(dir,i.sha1):undefined,locked:i.sha1?isModLocked(dir,i.sha1):false,error:i.error}))}
+export async function modCatalog(versionId:string,folder:string):Promise<ManagedMod[]>{const dir=await resolveResourceDirectory(folder,versionId,'mods');const entries=await scanManagedModDirectory(dir,'catalog');return entries.map(i=>({fileName:i.fileName,modId:i.id,name:i.name||i.fileName,version:i.version||'',sha1:i.sha1,fingerprint:i.fingerprint,identity:i.sha1?modIdentity(dir,i.sha1):undefined,locked:i.sha1?isModLocked(dir,i.sha1):false,error:i.error}))}
 export async function setModsEnabled(versionId:string,folder:string,names:string[],enabled:boolean):Promise<ModOperationResult[]>{const dir=await resolveResourceDirectory(folder,versionId,'mods');return withFileJob(dir,undefined,async()=>{await assertModsIdle(dir);if(!Array.isArray(names)||names.length>10000)throw new Error('单次最多处理10000个模组');const validNames=[...new Set(names)].filter(n=>{try{safeModName(n);return true}catch{return false}});if(validNames.length)await protectModChange(dir,validNames.flatMap(n=>[n,n.replace(/\.disabled$/i,'')+(enabled?'':'.disabled')]),'批量启停模组前');const result:ModOperationResult[]=[];for(const name of [...new Set(names)]){try{safeModName(name);const base=name.replace(/\.disabled$/i,''),target=base+(enabled?'':'.disabled');if(!fs.existsSync(path.join(dir,name))&&fs.existsSync(path.join(dir,target))){await validateModFile(dir,target);result.push({fileName:name,name:target,ok:true});continue}await validateModFile(dir,name);if(name!==target){if(fs.existsSync(path.join(dir,target)))throw new Error('目标文件已存在，未覆盖');await fs.promises.copyFile(path.join(dir,name),path.join(dir,target),fs.constants.COPYFILE_EXCL);try{await fs.promises.unlink(path.join(dir,name))}catch(e){await fs.promises.unlink(path.join(dir,target));throw e}}result.push({fileName:name,name:target,ok:true})}catch(e){result.push({fileName:name,ok:false,error:String(e)})}}return result})}
 export async function identify(dir:string,mods:ManagedMod[]):Promise<void>{
  const missing=mods.filter(m=>m.sha1&&modIdentity(dir,m.sha1).startsWith('sha1:'));if(!missing.length)return
@@ -42,14 +42,30 @@ export function discardModVersionPlan(id:string):void {
  changes.deleteMatching(change=>change.sourceId===id)
 }
 function compatible(f:CommunityFile,mc:string,loader:string){return /^https:\/\//.test(f.url)&&/^[a-f0-9]{40}$/i.test(f.sha1||'')&&f.gameVersions.includes(mc)&&f.loaders.includes(loader)&&path.basename(f.fileName)===f.fileName&&!/[\\/:\0]/.test(f.fileName)&&/\.jar$/i.test(f.fileName)}
-export async function modVersionChoices(versionId:string,folder:string,fileName:string):Promise<ModVersionChoices>{
- safeModName(fileName);const dir=await resolveResourceDirectory(folder,versionId,'mods'),mods=await modCatalog(versionId,folder);const mod=mods.find(m=>m.fileName===fileName);if(!mod?.sha1)throw new Error('无法读取该模组，请刷新后重试');await identify(dir,mods)
- const identity=modIdentity(dir,mod.sha1);if(identity.startsWith('sha1:'))throw new Error('未能在社区精确识别此文件，无法可靠提供其他版本；可手动下载并导入。')
- const [source,id]=identity.split(':') as [CommunitySource,string]
+export async function modVersionChoices(versionId:string,folder:string,fileName:string){safeModName(fileName);return versionChoices(versionId,folder,fileName)}
+export const fabricApiVersionChoices=(versionId:string,folder:string)=>versionChoices(versionId,folder)
+async function versionChoices(versionId:string,folder:string,fileName?:string):Promise<ModVersionChoices>{
  const meta=await withGameFolder(folder,()=>resolveInstanceMetadata(readVersionJson(versionId),id=>{try{return readVersionJson(id)}catch{return undefined}}))
  if(!meta.mcVersion||!meta.loader)throw new Error('实例缺少游戏或加载器版本信息')
+ const fabricApi=fileName===undefined
+ if(fabricApi&&meta.loader!=='fabric')throw new Error('此功能仅适用于 Fabric 客户端')
+ const dir=await resolveResourceDirectory(folder,versionId,'mods'),mods=await modCatalog(versionId,folder)
+ let source:CommunitySource='modrinth',id='P7dR8mSH'
+ if(fabricApi){
+  // Read the embedded mod ID so renamed and disabled API jars are still recognized.
+  const installed=mods.filter(m=>m.modId==='fabric-api'||m.modId==='fabric')
+  if(!installed.length)throw new Error('当前实例未安装 Fabric API，请先在模组页安装 Fabric API')
+  if(installed.length>1)throw new Error('发现多个 Fabric API 文件，请先在模组页清理重复文件后再切换')
+  fileName=installed[0].fileName
+ }
+ const mod=mods.find(m=>m.fileName===fileName);if(!mod?.sha1||mod.error)throw new Error('无法读取该模组，请刷新后重试')
+ if(!fabricApi){
+  await identify(dir,mods)
+  const identity=modIdentity(dir,mod.sha1);if(identity.startsWith('sha1:'))throw new Error('未能在社区精确识别此文件，无法可靠提供其他版本；可手动下载并导入。')
+  ;[source,id]=identity.split(':') as [CommunitySource,string]
+ }
  const files=(await communityFiles(source,id,{kind:'mod',mcVersion:meta.mcVersion,loader:meta.loader})).filter(f=>compatible(f,meta.mcVersion!,meta.loader!))
- const value:ModVersionChoices={id:crypto.randomUUID(),fileName,name:mod.name,currentVersion:mod.version,mcVersion:meta.mcVersion,loader:meta.loader,locked:isModLocked(dir,mod.sha1),files};choices.set(value.id,{value,dir,folder,versionId,mods});return value
+ const value:ModVersionChoices={id:crypto.randomUUID(),fileName:mod.fileName,name:mod.name,currentVersion:mod.version,mcVersion:meta.mcVersion,loader:meta.loader,locked:isModLocked(dir,mod.sha1),disabled:/\.disabled$/i.test(mod.fileName),shared:path.relative(folder,dir)==='mods',files};choices.set(value.id,{value,dir,folder,versionId,mods});return value
 }
 export async function planModVersionChange(id:string,fileId:string):Promise<ModChangePlan>{
  const c=choices.get(id);if(!c)throw new Error('版本列表已过期，请重新打开');const file=c.value.files.find(f=>f.fileId===fileId);if(!file)throw new Error('请选择列表内的适配版本');const mod=c.mods.find(m=>m.fileName===c.value.fileName)!,disabled=/\.disabled$/i.test(mod.fileName)

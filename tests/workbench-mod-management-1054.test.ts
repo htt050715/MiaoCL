@@ -9,13 +9,13 @@ import { createRequire } from 'node:module'
 import { cleanDesign } from '../src/shared/visualDesign'
 import { versionCategory, filterVersions } from '../src/shared/versionPicker'
 const hash=(s:string)=>crypto.createHash('sha1').update(s).digest('hex')
-async function harness(entry='src/main/core/modManagement.ts'){
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'kamucl-1054-')),dir=path.join(root,'versions','source','mods');fs.mkdirSync(dir,{recursive:true})
- const h:any={root,dir,downloads:[],fail:false,running:false,settings:{theme:'transparent',visualDesign:{version:1,pages:{}},memoryMB:4096},scanned:()=>fs.readdirSync(dir).filter(n=>/\.jar(?:\.disabled)?$/.test(n)).map(n=>({fileName:n,name:'Name '+n,version:'1.0',sha1:hash(fs.readFileSync(path.join(dir,n),'utf8')),fingerprint:1})),files:[]}
+async function harness(entry='src/main/core/modManagement.ts',shared=false){
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'kamucl-1054-')),dir=shared?path.join(root,'mods'):path.join(root,'versions','source','mods');fs.mkdirSync(dir,{recursive:true})
+ const h:any={root,dir,shared,metadata:{mcVersion:'1.21.1',loader:'fabric'},modIds:{},versions:{},payloads:{},requests:[],downloads:[],fail:false,running:false,settings:{theme:'transparent',visualDesign:{version:1,pages:{}},memoryMB:4096},scanned:()=>fs.readdirSync(dir).filter(n=>/\.jar(?:\.disabled)?$/.test(n)).map(n=>({fileName:n,id:h.modIds[n],name:'Name '+n,version:h.versions[n]||'1.0',sha1:hash(fs.readFileSync(path.join(dir,n),'utf8')),fingerprint:1})),files:[]}
  h.files=[{source:'modrinth',projectId:'a',fileId:'new',fileName:'new.jar',url:'https://cdn.modrinth.com/new.jar',sha1:hash('new'),gameVersions:['1.21.1'],loaders:['fabric'],version:'2',date:'2026-09-11',dependencies:[],size:3}]
- h.download=async(url:string,dest:string,_p:any,sha:string)=>{h.downloads.push(url);if(h.fail)throw Error('download failed');if(h.onDownload)await h.onDownload();assert.equal(sha,hash('new'));fs.writeFileSync(dest,'new')}
+ h.download=async(url:string,dest:string,_p:any,sha:string)=>{h.downloads.push(url);if(h.fail)throw Error('download failed');if(h.onDownload)await h.onDownload();const payload=h.payloads[url]??'new';assert.equal(sha,hash(payload));fs.writeFileSync(dest,payload)}
  h.post=async(url:string)=>({ok:true,json:async()=>url.endsWith('version_files')?Object.fromEntries(h.scanned().map((m:any)=>[m.sha1,{project_id:'a'}])):url.endsWith('fingerprints')?{data:{exactMatches:[]}}:{changelog:'Changes'}})
- const mocks:Record<string,string>={electron:`export const app={getPath:()=>h.root}`,download:'export const downloadFile=(...a)=>h.download(...a);export const downloadAll=async(tasks)=>{await Promise.all(tasks.map(t=>h.download(t.url,t.dest,undefined,t.sha1)))}',modScan:'export const scanManagedModDirectory=async()=>h.scanned()',resourceDirectory:"export const resolveResourceDirectory=async(folder,id)=>p.join(folder,'versions',id,'mods')",paths:'export const withGameFolder=(folder,f)=>f();export const gameDir=()=>h.root',versions:"export const listAllInstalled=()=>[{id:'source',folder:h.root}];export const readVersionJson=()=>({id:'source'})",instanceMetadata:"export const resolveInstanceMetadata=()=>({mcVersion:'1.21.1',loader:'fabric'})",launch:"export const getRunningVersionIds=()=>new Set(h.running?['source']:[])",httpClient:'export const httpFetch=(...a)=>h.post(...a)',community:"export const communityFiles=async()=>h.files;export const communityExactFile=async()=>h.dependency;export const cfChannel=()=>({base:'https://cf',key:''})",settings:"export const getSettings=()=>h.settings;export const saveSettings=(s)=>{if(h.fail)throw Error('disk failed');return h.settings={...h.settings,...s}}"}
+ const mocks:Record<string,string>={electron:`export const app={getPath:()=>h.root}`,download:'export const downloadFile=(...a)=>h.download(...a);export const downloadAll=async(tasks)=>{await Promise.all(tasks.map(t=>h.download(t.url,t.dest,undefined,t.sha1)))}',modScan:'export const scanManagedModDirectory=async()=>h.scanned()',resourceDirectory:"export const resolveResourceDirectory=async(folder,id)=>h.shared?p.join(folder,'mods'):p.join(folder,'versions',id,'mods')",paths:'export const withGameFolder=(folder,f)=>f();export const gameDir=()=>h.root',versions:"export const listAllInstalled=()=>[{id:'source',folder:h.root}];export const readVersionJson=()=>({id:'source'})",instanceMetadata:"export const resolveInstanceMetadata=()=>h.metadata",launch:"export const getRunningVersionIds=()=>new Set(h.running?['source']:[])",httpClient:'export const httpFetch=(...a)=>h.post(...a)',community:"export const communityFiles=async(...args)=>{h.requests.push(args);return h.files};export const communityExactFile=async()=>h.dependency;export const cfChannel=()=>({base:'https://cf',key:''})",settings:"export const getSettings=()=>h.settings;export const saveSettings=(s)=>{if(h.fail)throw Error('disk failed');return h.settings={...h.settings,...s}}"}
  const result=await build({stdin:{contents:`export * from '${path.resolve(entry).replaceAll('\\','/')}';export * from '${path.resolve('src/main/core/modState.ts').replaceAll('\\','/')}';export * from '${path.resolve('src/main/core/modTransaction.ts').replaceAll('\\','/')}';`,resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'isolate',setup(b){b.onResolve({filter:/^(\.\/|electron$)/},a=>{const k=a.path.replace('./','');if(mocks[k])return{path:k,namespace:'mock'}});b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:"import p from 'node:path';const h=globalThis.__test1054;"+mocks[a.path],loader:'js'}))}}]});(globalThis as any).__test1054=h;const m={exports:{} as any};new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),m,m.exports)
  const write=(name:string,value=name)=>fs.writeFileSync(path.join(dir,name),value)
  return {h,root,dir,api:m.exports,write,read:(name:string)=>fs.readFileSync(path.join(dir,name),'utf8'),close:()=>{delete(globalThis as any).__test1054;assert(path.resolve(root).startsWith(path.resolve(os.tmpdir())+path.sep));fs.rmSync(root,{recursive:true,force:true})}}
@@ -54,5 +54,85 @@ test('1113 discarding while applying preserves the active transaction and retire
   const applying=t.api.applyModVersionChange(p.id,true);await reached;t.api.discardModVersionPlan(c.id);t.api.discardModVersionPlan(p.id);release();await applying
   assert.equal(t.read('new.jar'),'new');assert(!fs.existsSync(path.join(t.dir,'old.jar')))
   await assert.rejects(t.api.applyModVersionChange(p.id,true),/过期/)
+ }finally{t.close()}
+})
+
+test('Fabric API recognizes renamed disabled jars and upgrades or downgrades only compatible official releases',async()=>{
+ const t=await harness();try{
+  t.write('renamed.jar.disabled','old');t.write('unrelated.jar','other')
+  Object.assign(t.h.modIds,{'renamed.jar.disabled':'fabric-api','new.jar.disabled':'fabric-api'})
+  t.h.versions['new.jar.disabled']='2'
+  t.api.setModLocked(t.dir,hash('old'),true)
+  // Switching the known API project must not depend on identifying unrelated mods.
+  t.h.post=async()=>{throw Error('hash lookup unavailable')}
+  const current=t.h.files[0]
+  t.h.files=[
+   {...current,projectId:'P7dR8mSH'},
+   {...current,projectId:'P7dR8mSH',fileId:'older',fileName:'older.jar',version:'0.5',url:'https://cdn.modrinth.com/older.jar',sha1:hash('older')},
+   {...current,fileId:'wrong-mc',gameVersions:['1.20.1']},
+   {...current,fileId:'wrong-loader',loaders:['forge']}
+  ]
+  t.h.payloads['https://cdn.modrinth.com/older.jar']='older'
+  const c=await t.api.fabricApiVersionChoices('source',t.root)
+  assert.equal(c.fileName,'renamed.jar.disabled');assert.equal(c.currentVersion,'1.0')
+  assert(c.disabled);assert(c.locked);assert.equal(c.shared,false)
+  assert.deepEqual(c.files.map((f:any)=>f.fileId),['new','older'])
+  assert.deepEqual(t.h.requests[0],['modrinth','P7dR8mSH',{kind:'mod',mcVersion:'1.21.1',loader:'fabric'}])
+  await assert.rejects(t.api.planModVersionChange(c.id,'wrong-mc'),/适配/)
+  const upgrade=await t.api.planModVersionChange(c.id,'new')
+  await assert.rejects(t.api.applyModVersionChange(upgrade.id,false),/确认/)
+  await t.api.applyModVersionChange(upgrade.id,true)
+  assert.equal(t.read('new.jar.disabled'),'new');assert(!fs.existsSync(path.join(t.dir,'renamed.jar.disabled')))
+  assert(t.api.isModLocked(t.dir,hash('new')))
+  const newer=await t.api.fabricApiVersionChoices('source',t.root)
+  assert.equal(newer.currentVersion,'2')
+  const downgrade=await t.api.planModVersionChange(newer.id,'older')
+  await t.api.applyModVersionChange(downgrade.id,true)
+  assert.equal(t.read('older.jar.disabled'),'older');assert(!fs.existsSync(path.join(t.dir,'new.jar.disabled')))
+  assert(t.api.isModLocked(t.dir,hash('older')));assert.equal(t.read('unrelated.jar'),'other')
+ }finally{t.close()}
+})
+
+test('Fabric API rejects missing, duplicate and non-Fabric instances without downloading',async()=>{
+ const t=await harness();try{
+  t.write('fabric-api-fake.jar','unrelated')
+  await assert.rejects(t.api.fabricApiVersionChoices('source',t.root),/未安装/)
+  t.h.modIds['fabric-api-fake.jar']='fabric-api'
+  t.write('second.jar.disabled','old');t.h.modIds['second.jar.disabled']='fabric-api'
+  await assert.rejects(t.api.fabricApiVersionChoices('source',t.root),/多个 Fabric API/)
+  t.h.metadata.loader='forge'
+  await assert.rejects(t.api.fabricApiVersionChoices('source',t.root),/仅适用于 Fabric/)
+  assert.equal(t.h.downloads.length,0);assert.equal(t.h.requests.length,0)
+ }finally{t.close()}
+})
+
+test('Fabric API also recognizes the legacy fabric mod ID in older clients',async()=>{
+ const t=await harness();try{
+  t.write('legacy-renamed.jar','old');t.h.modIds['legacy-renamed.jar']='fabric'
+  t.h.metadata.mcVersion='1.16.5';t.h.files[0].gameVersions=['1.16.5']
+  const c=await t.api.fabricApiVersionChoices('source',t.root)
+  assert.equal(c.fileName,'legacy-renamed.jar');assert.equal(c.mcVersion,'1.16.5');assert.equal(c.files.length,1)
+  assert.equal(t.h.requests[0][1],'P7dR8mSH')
+ }finally{t.close()}
+})
+
+test('Fabric API shared-directory switches preserve the original on failures and reject a running client',async()=>{
+ const t=await harness('src/main/core/modManagement.ts',true);try{
+  t.write('api.jar','old');t.h.modIds['api.jar']='fabric-api'
+  const c=await t.api.fabricApiVersionChoices('source',t.root)
+  assert.equal(c.shared,true);assert.equal(c.disabled,false)
+  const p=await t.api.planModVersionChange(c.id,'new')
+  t.h.running=true
+  await assert.rejects(t.api.applyModVersionChange(p.id,true),/正在运行/)
+  assert.equal(t.h.downloads.length,0)
+  t.h.running=false;t.h.fail=true
+  await assert.rejects(t.api.applyModVersionChange(p.id,true),/download failed/)
+  assert.equal(t.read('api.jar'),'old');assert(!fs.existsSync(path.join(t.dir,'new.jar')))
+  t.h.fail=false;t.h.onDownload=()=>{t.h.running=true}
+  await assert.rejects(t.api.applyModVersionChange(p.id,true),/正在运行/)
+  assert.equal(t.read('api.jar'),'old');assert(!fs.existsSync(path.join(t.dir,'new.jar')))
+  t.h.running=false;t.h.onDownload=undefined
+  await t.api.applyModVersionChange(p.id,true)
+  assert.equal(t.read('new.jar'),'new');assert(!fs.existsSync(path.join(t.dir,'api.jar')))
  }finally{t.close()}
 })

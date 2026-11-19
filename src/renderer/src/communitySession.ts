@@ -1,4 +1,4 @@
-import type { CommunityQuery, CommunityResult } from '@shared/types'
+import type { CommunityQuery, CommunityResult, CommunitySearchSnapshot } from '@shared/types'
 
 /** Route-local, memory-only history: leaving the page releases its DOM and dialogs. */
 export interface CommunitySession {
@@ -17,6 +17,7 @@ export interface CommunitySession {
   scrollTop: number
   topKeyword: string
   interrupted: boolean
+  progressiveSnapshot?: CommunitySearchSnapshot
 }
 let last: CommunitySession | undefined
 export function saveCommunitySession(value: CommunitySession): void {

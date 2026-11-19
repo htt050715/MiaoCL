@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { serverVersionDisplay } from '../src/shared/serverVersionDisplay'
+import type { InstalledVersion, ServerEntry } from '../src/shared/types'
 import {
   parseServerAddress,
   serverAssociationKey,
@@ -58,4 +60,25 @@ test('Quick Play multiplayer is limited to officially supported versions', () =>
   assert.equal(supportsQuickPlayMultiplayer('23w13a'), false)
   assert.equal(supportsQuickPlayMultiplayer('23w14a'), true)
   assert.equal(supportsQuickPlayMultiplayer('unknown'), false)
+})
+
+test('server version display follows the linked instance without mutating saved metadata', () => {
+  const server: ServerEntry = {
+    id: 'server', name: 'Test', address: 'example.com', versionId: 'client',
+    folder: 'C:\\Games\\Minecraft', minecraftVersion: '1.21.4', loader: 'fabric', loaderVersion: '0.16.9'
+  }
+  const target: InstalledVersion = {
+    id: 'client', folder: 'c:/games/minecraft/', mcVersion: '1.21.11',
+    loader: 'fabric', loaderVersion: '0.17.3'
+  }
+
+  assert.deepEqual(serverVersionDisplay(server, target), {
+    ...server, minecraftVersion: '1.21.11', loader: 'fabric', loaderVersion: '0.17.3'
+  })
+  assert.equal(server.minecraftVersion, '1.21.4')
+  assert.deepEqual(serverVersionDisplay(server), server)
+  assert.equal(serverVersionDisplay({ ...server, minecraftVersion: '0.0.0' }).minecraftVersion, '未知')
+  assert.deepEqual(serverVersionDisplay({ ...server, versionId: undefined }, target), {
+    ...server, versionId: undefined
+  })
 })

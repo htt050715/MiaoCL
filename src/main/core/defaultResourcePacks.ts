@@ -5,10 +5,12 @@ import AdmZip from 'adm-zip'
 import { app } from 'electron'
 import type { DefaultResourcePack } from '../../shared/types'
 import { mcVersionAtLeast } from '../../shared/keybindings'
+import { prepareResourcePackArchive } from './resourcePackArchive'
 
 const root = () => path.join(app.getPath('userData'), 'default-resourcepacks')
 const manifest = () => path.join(root(), 'packs.json')
 const managedName = (p: DefaultResourcePack) => `KAMUCL-default-${p.id}-${p.name}`
+const digest = (data: Buffer) => crypto.createHash('sha256').update(data).digest('hex')
 function save(packs: DefaultResourcePack[]): DefaultResourcePack[] {
   fs.mkdirSync(root(), { recursive: true })
   fs.writeFileSync(manifest() + '.tmp', JSON.stringify(packs, null, 2))
@@ -26,12 +28,9 @@ export function importDefaultResourcePacks(files: string[]): DefaultResourcePack
   // 先验证整个批次，任一错误都不改变当前配置。
   const incoming = files.map(file => {
     if (typeof file !== 'string' || path.extname(file).toLowerCase() !== '.zip' || !fs.statSync(file).isFile()) throw new Error('请选择 ZIP 格式材质包')
-    const data = fs.readFileSync(file), zip = new AdmZip(data), entry = zip.getEntry('pack.mcmeta')
-    if (!entry || entry.header.size > 1024 * 1024) throw new Error(`${path.basename(file)} 缺少有效的 pack.mcmeta`)
-    let meta: any
-    try { meta = JSON.parse(entry.getData().toString('utf8').replace(/^\uFEFF/, '')) } catch { throw new Error(`${path.basename(file)} 的 pack.mcmeta 无法读取`) }
-    if (!meta?.pack || typeof meta.pack !== 'object') throw new Error(`${path.basename(file)} 不是有效材质包`)
-    return { data, pack: { id: crypto.createHash('sha256').update(data).digest('hex'), name: path.basename(file).replace(/[<>:"/\\|?*]/g, '_'), size: data.length, enabled: true } }
+    const data = fs.readFileSync(file)
+    prepareResourcePackArchive(data, path.basename(file))
+    return { data, pack: { id: digest(data), name: path.basename(file).replace(/[<>:"/\\|?*]/g, '_'), size: data.length, enabled: true } }
   })
   const packs = getDefaultResourcePacks()
   fs.mkdirSync(root(), { recursive: true })
@@ -115,18 +114,21 @@ export function syncDefaultResourcePacks(gameDir: string, mcVersion: string, cli
   const managed = allPacks.map(p => (mcVersionAtLeast(mcVersion, '1.13') ? 'file/' : '') + managedName(p))
   const names = packs.map(p => (mcVersionAtLeast(mcVersion, '1.13') ? 'file/' : '') + managedName(p))
   const targetFormat = readClientResourceFormat(clientJar)
-  const incompatible = names.filter((_name, i) => {
-    const meta = JSON.parse(new AdmZip(path.join(root(), packs[i].id + '.zip')).readAsText('pack.mcmeta').replace(/^\uFEFF/, ''))
-    return resourcePackIncompatible(meta.pack, targetFormat)
-  })
   const options = path.join(gameDir, 'options.txt'), before = fs.existsSync(options) ? fs.readFileSync(options, 'utf8') : ''
+  const target = path.join(gameDir, 'resourcepacks')
+  const payloads = packs.map(p => {
+    const source = fs.readFileSync(path.join(root(), p.id + '.zip'))
+    if (digest(source) !== p.id) throw new Error(`默认材质包缓存被修改，未覆盖：${p.name}`)
+    const prepared = prepareResourcePackArchive(source, p.name)
+    const dest = path.join(target, managedName(p)), exists = fs.existsSync(dest)
+    if (exists && !fs.readFileSync(dest).equals(prepared.data)) throw new Error(`默认材质包副本被修改，未覆盖：${p.name}`)
+    return { ...prepared, dest, exists }
+  })
+  const incompatible = names.filter((_name, i) => resourcePackIncompatible(payloads[i].metadata, targetFormat))
   const after = mergeResourcePackOptions(before, names, [...new Set([...previous, ...managed])], incompatible)
-  const target = path.join(gameDir, 'resourcepacks'); fs.mkdirSync(target, { recursive: true })
-  for (const p of packs) {
-    const dest = path.join(target, managedName(p)), source = path.join(root(), p.id + '.zip')
-    if (fs.existsSync(dest)) {
-      if (crypto.createHash('sha256').update(fs.readFileSync(dest)).digest('hex') !== p.id) throw new Error(`默认材质包副本被修改，未覆盖：${p.name}`)
-    } else fs.copyFileSync(source, dest, fs.constants.COPYFILE_EXCL)
+  fs.mkdirSync(target, { recursive: true })
+  for (const { data, dest, exists } of payloads) {
+    if (!exists) fs.writeFileSync(dest, data, { flag: 'wx' })
   }
   if (after !== before) { if (before) fs.writeFileSync(options + '.before-default-packs', before); fs.writeFileSync(options, after) }
   fs.writeFileSync(stateFile, JSON.stringify(names))

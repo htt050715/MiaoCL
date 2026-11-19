@@ -350,8 +350,11 @@ function withZhTitle(list: CommunityResult[]): CommunityResult[] {
   })
 }
 
-const sourceCounts = new Map<string, { total: number; time: number }>()
-const rawProviderSearch = (source: CommunitySource, q: CommunityQuery) => source === 'modrinth' ? mrSearch(q) : cfSearch(q)
+interface SourceCount { total: number; time: number; revision: object }
+const sourceCounts = new Map<string, SourceCount>()
+// Only the newest count request may update its cache entry.
+const sourceCountReads = new Map<string, object>()
+export const rawProviderSearch = (source: CommunitySource, q: CommunityQuery) => source === 'modrinth' ? mrSearch(q) : cfSearch(q)
 const aliasCatalogs = new Map<string, { time: number; items: CommunityResult[]; warnings: string[] }>()
 async function providerSearch(source: CommunitySource, q: CommunityQuery): Promise<CommunitySearchPage> {
   const terms = q.kind === 'mod' ? chineseModSearchTerms(q.keyword) : []
@@ -401,32 +404,82 @@ export async function communitySearchPage(input: CommunityQuery): Promise<Commun
     return { ...page, items: withZhTitle(page.items) }
   }
   const sources: CommunitySource[] = ['modrinth', 'curseforge']
+  const warnings: string[] = []
+  const countKey = (source: CommunitySource) => JSON.stringify({ ...q, source, offset: 0, limit: 1 })
   const counts = await Promise.allSettled(sources.map(async source => {
-    const key = JSON.stringify({ ...q, source, offset: 0, limit: 1 })
+    const key = countKey(source)
     const cached = sourceCounts.get(key)
-    if (q.offset > 0 && cached && Date.now() - cached.time < 60_000) return cached.total
-    const page = await providerSearch(source, { ...q, source, offset: 0, limit: 1 })
-    if (sourceCounts.size > 100) sourceCounts.clear()
-    sourceCounts.set(key, { total: page.total, time: Date.now() })
-    return page.total
+    if (q.offset > 0 && cached && Date.now() - cached.time < 60_000) return cached
+    const revision = {}
+    sourceCountReads.set(key, revision)
+    // Invalidate before awaiting: a concurrent page must not reuse the prior
+    // healthy snapshot while this explicit refresh is still unresolved.
+    sourceCounts.delete(key)
+    try {
+      const page = await providerSearch(source, { ...q, source, offset: 0, limit: 1 })
+      warnings.push(...(page.warnings ?? []))
+      const value = { total: page.total, time: Date.now(), revision }
+      if (sourceCountReads.get(key) === revision) {
+        if (sourceCounts.size > 100) sourceCounts.clear()
+        if (!page.warnings?.length) sourceCounts.set(key, value)
+        else sourceCounts.delete(key)
+      }
+      return value
+    } catch (error) {
+      if (sourceCountReads.get(key) === revision) sourceCounts.delete(key)
+      throw error
+    } finally {
+      if (sourceCountReads.get(key) === revision) sourceCountReads.delete(key)
+    }
   }))
   if (counts.every(r => r.status === 'rejected')) throw (counts[0] as PromiseRejectedResult).reason
-  const warnings: string[] = []
   const totals = { modrinth: 0, curseforge: 0 }
   counts.forEach((result, i) => {
-    if (result.status === 'fulfilled') totals[sources[i]] = result.value
+    if (result.status === 'fulfilled') totals[sources[i]] = result.value.total
     else warnings.push(`${sources[i] === 'modrinth' ? 'Modrinth' : 'CurseForge'} 暂不可用，当前仅统计另一来源；可重试或切换来源。`)
   })
+  const invalidateObservedCount = (source: CommunitySource) => {
+    const observed = counts[sources.indexOf(source)]
+    if (observed.status === 'fulfilled' && sourceCounts.get(countKey(source))?.revision === observed.value.revision) sourceCounts.delete(countKey(source))
+  }
+  const failures = new Map<CommunitySource, unknown>()
+  counts.forEach((result, i) => { if (result.status === 'rejected') failures.set(sources[i], result.reason) })
+  const pages = new Map<CommunitySource, { offset: number; limit: number; items: CommunityResult[] }>()
+  const covers = (source: CommunitySource, own: Array<{ index: number }>) => {
+    const page = pages.get(source)
+    return !own.length || !!page && own[0].index >= page.offset && own.at(-1)!.index < page.offset + page.limit
+  }
+  // A provider can fail after its count succeeded. Keep the other provider's
+  // results, then replan against the actual available totals. Fetch a different
+  // surviving range when necessary; never fill a new page with old offsets.
+  for (let round = 0; round <= sources.length; round++) {
+    const planned = communityPageSlots(totals, q.offset, q.limit)
+    const needed = sources.map(source => ({ source, own: planned.filter(slot => slot.source === source) })).filter(row => !covers(row.source, row.own))
+    if (!needed.length) break
+    const fetched = await Promise.allSettled(needed.map(async ({ source, own }) => {
+      try {
+        const page = await providerSearch(source, { ...q, source, offset: own[0].index, limit: own.length })
+        warnings.push(...(page.warnings ?? []))
+        if (page.warnings?.length || page.total !== totals[source]) invalidateObservedCount(source)
+        return page
+      } catch (error) { invalidateObservedCount(source); throw error }
+    }))
+    fetched.forEach((result, index) => {
+      const { source, own } = needed[index]
+      if (result.status === 'fulfilled') {
+        totals[source] = result.value.total
+        pages.set(source, { offset: own[0].index, limit: own.length, items: result.value.items })
+      } else {
+        totals[source] = 0; pages.delete(source); failures.set(source, result.reason)
+        warnings.push(`${source === 'modrinth' ? 'Modrinth' : 'CurseForge'} 结果读取失败，当前仅统计另一来源；可重试或切换来源。`)
+      }
+    })
+    if (failures.size === sources.length) throw failures.values().next().value
+  }
   const slots = communityPageSlots(totals, q.offset, q.limit)
-  const pages = await Promise.all(sources.map(async source => {
-    const own = slots.filter(slot => slot.source === source)
-    if (!own.length) return { source, offset: 0, items: [] as CommunityResult[] }
-    const page = await providerSearch(source, { ...q, source, offset: own[0].index, limit: own.length })
-    warnings.push(...(page.warnings ?? []))
-    return { source, offset: own[0].index, items: page.items }
-  }))
+  if (sources.some(source => !covers(source, slots.filter(slot => slot.source === source)))) throw new Error('社区来源结果在翻页时持续变化，请重新搜索后重试。')
   const items = slots.flatMap(slot => {
-    const page = pages.find(p => p.source === slot.source)!
+    const page = pages.get(slot.source)!
     const item = page.items[slot.index - page.offset]
     return item ? [item] : []
   })
@@ -500,6 +553,8 @@ export async function curseForgeFilePage(projectID: number, fileID: number): Pro
 export async function communitySearch(q: CommunityQuery): Promise<CommunityResult[]> {
   return (await communitySearchPage(q)).items
 }
+
+export { startCommunitySearch, continueCommunitySearch, cancelCommunitySearch } from './communitySearchSession'
 
 /** 项目文件列表（新→旧） */
 export async function communityFiles(

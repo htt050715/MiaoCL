@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ContentSkeleton from '../components/ContentSkeleton.vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { communityDownload, communityFiles, communitySearch, errText, getManifest, getModTargets } from '../api'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
+import { communityDownload, communityFiles, communitySearch, communitySearchCancel, communitySearchContinue, communitySearchStart, errText, getManifest, getModTargets, onCommunitySearchUpdate } from '../api'
 import { store, toast, selectedInstance, selectInstance, displayVersionName as versionLabel } from '../store'
 import { instanceKey } from '@shared/modCompatibility'
 import { communityFileMatchesInstance, usesCommunityLoader } from '@shared/communityPolicy'
@@ -15,11 +15,13 @@ import ModInstallDialog from '../components/ModInstallDialog.vue'
 import CommunityFavorites from '../components/CommunityFavorites.vue'
 import CommunityModDetails from '../components/CommunityModDetails.vue'
 import { favorites, favoriteBusy, loadFavorites, toggleProject } from '../modFavorites'
+import { communityQueryKey, createProgressiveCommunitySearch, usesProgressiveCommunitySearch, type ProgressiveCommunityState } from '../communityProgressiveSearch'
 onMounted(()=>void loadFavorites())
 import type {
   CommunityFile,
   CommunityKind,
   CommunityProjectReference,
+  CommunityQuery,
   CommunityResult,
   CommunitySource,
   LoaderName
@@ -182,6 +184,28 @@ const hasMore = ref(previousSession?.hasMore ?? false)
 const currentPage = ref(previousSession?.page ?? 1)
 const totalResults = ref(previousSession?.total ?? 0)
 const searchWarnings = ref<string[]>(previousSession?.warnings ?? [])
+const progressiveState = shallowRef<ProgressiveCommunityState>({ requestId: null, revision: -1, pending: false, paused: false, error: '' })
+const progressiveSearch = createProgressiveCommunitySearch({
+  uuid: () => crypto.randomUUID(),
+  start: communitySearchStart,
+  continue: communitySearchContinue,
+  cancel: communitySearchCancel,
+  subscribe: onCommunitySearchUpdate,
+  changed: state => {
+    progressiveState.value = state
+    loading.value = state.pending && (!state.snapshot || state.snapshot.phase === 'initial' || !state.snapshot.items.length)
+    loadingMore.value = state.pending && !loading.value
+    loadError.value = state.error || state.snapshot?.error || ''
+    const snapshot = state.snapshot
+    if (!snapshot) return
+    results.value = snapshot.items
+    totalResults.value = snapshot.total
+    searchWarnings.value = snapshot.warnings ?? []
+    offset.value = snapshot.items.length
+    hasMore.value = !!snapshot.cursor
+  },
+  errorText: errText
+})
 const totalPages = computed(() => Math.max(1, Math.ceil(totalResults.value / PAGE_SIZE)))
 const visiblePages = computed(() => {
   const start = Math.max(1, Math.min(currentPage.value - 2, totalPages.value - 4))
@@ -192,7 +216,8 @@ const listCard = ref<HTMLElement | null>(null)
 let searchGeneration = 0
 let disposed = false
 onBeforeUnmount(() => {
-  saveCommunitySession({ query: { ...query }, tab: communityTab.value, favoriteSearch: favoriteSearch.value, versionInput: versionInput.value, results: results.value, searched: searched.value, error: loadError.value, offset: offset.value, hasMore: hasMore.value, page: currentPage.value, total: totalResults.value, warnings: searchWarnings.value, scrollTop: document.querySelector<HTMLElement>('.content')?.scrollTop ?? 0, topKeyword: store.searchKeyword, interrupted: loading.value || loadingMore.value })
+  saveCommunitySession({ query: { ...query }, tab: communityTab.value, favoriteSearch: favoriteSearch.value, versionInput: versionInput.value, results: results.value, searched: searched.value, error: loadError.value, offset: offset.value, hasMore: hasMore.value, page: currentPage.value, total: totalResults.value, warnings: searchWarnings.value, scrollTop: document.querySelector<HTMLElement>('.content')?.scrollTop ?? 0, topKeyword: store.searchKeyword, interrupted: loading.value || loadingMore.value, progressiveSnapshot: progressiveState.value.snapshot })
+  progressiveSearch.dispose()
   disposed = true; searchGeneration++; fileGeneration++; openGeneration++
 })
 async function doSearch(reset: boolean, page = currentPage.value) {
@@ -213,8 +238,7 @@ async function doSearch(reset: boolean, page = currentPage.value) {
   else loadingMore.value = true
   loadError.value = ''
   searched.value = true
-  try {
-    const response = await communitySearch({
+  const searchQuery: CommunityQuery = {
       keyword: query.keyword.trim(),
       kind: query.kind,
       source: query.source,
@@ -223,7 +247,19 @@ async function doSearch(reset: boolean, page = currentPage.value) {
       sort: query.sort,
       offset: requestedOffset,
       limit: PAGE_SIZE
-    })
+  }
+  if (usesProgressiveCommunitySearch(searchQuery)) {
+    const previous = previousSession?.progressiveSnapshot
+    const retained = reset && previous && communityQueryKey(previous.query) === communityQueryKey(searchQuery) ? previous : undefined
+    results.value = retained?.items ?? []
+    totalResults.value = retained?.total ?? 0
+    searchWarnings.value = retained?.warnings ?? []
+    void progressiveSearch.start(searchQuery, retained)
+    return
+  }
+  void progressiveSearch.pause()
+  try {
+    const response = await communitySearch(searchQuery)
     if (generation !== searchGeneration) return
     const list = response.items
     if (first) results.value = list
@@ -245,7 +281,14 @@ async function doSearch(reset: boolean, page = currentPage.value) {
 }
 
 const onSearch = () => void doSearch(true)
-const onLoadMore = () => void doSearch(false)
+const onLoadMore = () => {
+  if (usesProgressiveCommunitySearch({ kind: query.kind, keyword: query.keyword })) {
+    const snapshot = progressiveState.value.snapshot
+    if (snapshot?.cursor) void progressiveSearch.more(snapshot.total > snapshot.items.length ? 'page' : 'discover')
+    return
+  }
+  void doSearch(false)
+}
 async function goToPage(page: number) {
   if (loading.value || page < 1 || page > totalPages.value || page === currentPage.value) return
   await doSearch(false, page)
@@ -310,6 +353,8 @@ onMounted(async () => {
   const newKeyword = store.searchKeyword.trim()
   if (!previousSession || (newKeyword && newKeyword !== previousSession.topKeyword.trim())) { query.keyword = newKeyword; void doSearch(true) }
   else {
+    const saved = previousSession.progressiveSnapshot
+    if (saved && communityQueryKey(saved.query) === communityQueryKey({ ...query, keyword: query.keyword.trim(), offset: 0, limit: PAGE_SIZE })) progressiveSearch.restore(saved)
     await nextTick()
     const content = document.querySelector<HTMLElement>('.content')
     if (content) content.scrollTop = previousSession.scrollTop
@@ -535,6 +580,14 @@ function selectDownloadInstance() { const target = targetOptions.value.find(v =>
     <!-- 结果列表 -->
     <div data-ui="CommunityView:5e55abba5e8a" ref="listCard" class="card list-card">
       <div data-ui="CommunityView:72423555b623" v-if="results.length && (loading || loadError)" class="status-strip" role="status">{{ loading ? '正在更新条件，暂时显示上次结果…' : '更新失败，以下为上次结果：' + loadError }}<button data-ui="CommunityView:4ab4e45e43a0" v-if="loadError" class="btn btn-ghost btn-sm" @click="doSearch(true)">重试</button></div>
+      <div v-if="usesProgressiveCommunitySearch({ kind: query.kind, keyword: query.keyword }) && searched" class="progressive-status" role="status">
+        <span>已确认 {{ totalResults }} 项<span v-if="progressiveState.pending"> · {{ progressiveState.snapshot?.phase === 'initial' ? '正在搜索' : '正在核对相关模组' }}</span><span v-else-if="progressiveState.paused"> · 已暂停</span></span>
+        <button v-if="progressiveState.pending" class="btn btn-ghost btn-sm" @click="progressiveSearch.pause()">暂停查找</button>
+        <button v-else-if="progressiveState.snapshot?.cursor" class="btn btn-ghost btn-sm" @click="onLoadMore">
+          {{ progressiveState.snapshot.total > progressiveState.snapshot.items.length ? '加载更多已确认项目' : '继续查找相关模组' }}
+        </button>
+        <button v-else-if="progressiveState.paused" class="btn btn-ghost btn-sm" @click="doSearch(true)">继续搜索</button>
+      </div>
       <p data-ui="CommunityView:fa2eef57b2fc" v-for="warning in searchWarnings" :key="warning" class="search-warning">{{ warning }}</p>
       <!-- 加载中 -->
 <ContentSkeleton v-if="loading && !results.length" label="正在搜索社区资源…" :rows="6" retry @retry="doSearch(true)"/>
@@ -803,6 +856,7 @@ function selectDownloadInstance() { const target = targetOptions.value.find(v =>
 }
 .pagination { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--space-2); padding: var(--space-4) 0 var(--space-2); }
 .search-warning { color: var(--text-dim); font-size: var(--text-xs); padding: var(--space-2); }
+.progressive-status { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;margin:0 0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card-2);color:var(--text-dim);font-size:var(--text-xs); }
 .result-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));

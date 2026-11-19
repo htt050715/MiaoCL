@@ -157,3 +157,49 @@ test('Fabric selection waits for API metadata, retries failures, and ignores sta
     assert.match(state.modal.apiError, /暂无适配/)
   } finally { scope.stop() }
 })
+
+test('Fabric API version dialog uses the shared plan/apply flow and keeps failures open for retry', async () => {
+  const file = path.resolve('src/renderer/src/components/ModVersionModal.vue')
+  const { descriptor } = parse(fs.readFileSync(file, 'utf8'))
+  const result = await build({
+    stdin: { contents: compileScript(descriptor, { id: file }).content, loader: 'ts', resolveDir: path.dirname(file) },
+    bundle: true, write: false, format: 'cjs', platform: 'node', packages: 'external',
+    plugins: [{ name: 'modal-api', setup(b) {
+      b.onResolve({ filter: /^\.\.\/api$/ }, () => ({ path: 'api', external: true }))
+    } }]
+  })
+  const calls: any[][] = [], events: string[] = [], mounted: Array<() => unknown> = [], unmounted: Array<() => void> = []
+  const choices = { id: 'choices', currentVersion: '2', files: [{ fileId: 'older', version: '1' }] }
+  const plan = { id: 'plan', warnings: [], target: choices.files[0] }
+  let fail = true
+  const exported = { exports: {} as any }, require = createRequire(path.resolve('package.json'))
+  new Function('require', 'module', 'exports', 'window', result.outputFiles[0].text)(
+    (name: string) => name === 'vue' ? { ...vue, onMounted: (fn: () => unknown) => mounted.push(fn), onUnmounted: (fn: () => void) => unmounted.push(fn) }
+      : name === 'api' ? { errText: (e: Error) => e.message } : require(name),
+    exported, exported.exports, { kamucl: { invoke: async (...args: any[]) => {
+      calls.push(args)
+      if (args[0] === 'mods:fabricApiChoices') return choices
+      if (args[0] === 'mods:versionPlan') return plan
+      if (args[0] === 'mods:versionApply' && fail) throw Error('游戏正在运行')
+    } } }
+  )
+  const scope = vue.effectScope()
+  const state = scope.run(() => exported.exports.default.setup({ source: { id: 'client', folder: 'private-game' }, fabricApi: true }, { expose: () => {}, emit: (e: string) => events.push(e) }))
+  try {
+    await mounted[0]()
+    assert.deepEqual(calls[0], ['mods:fabricApiChoices', 'client', 'private-game'])
+    assert.equal(state.title, 'Fabric API 版本管理')
+    await state.select('older')
+    assert.deepEqual(calls[1], ['mods:versionPlan', 'choices', 'older'])
+    await state.apply()
+    assert.match(state.error.value, /正在运行/);assert.deepEqual(events, [])
+    assert.equal(state.applying.value, false)
+    fail = false
+    await state.apply()
+    assert.deepEqual(events, ['done', 'close'])
+  } finally {
+    for (const fn of unmounted) fn()
+    scope.stop()
+  }
+  assert(calls.some(c => c[0] === 'mods:versionDiscard' && c[1] === 'choices'))
+})

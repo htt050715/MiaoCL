@@ -25,6 +25,7 @@ import { registerInstanceCenterIpc } from './core/instanceCenterIpc'
 import { resolveResourceDirectory, listResourceEntries, requireResourceVersion } from './core/resourceDirectory'
 import { importResourceFiles } from './core/resourceFiles'
 import { exitHistory } from './core/exitHistory'
+import { registerCommunitySearchIpc } from './core/communitySearchIpc'
 /**
  * IPC 注册：types.ts 中 IPC 常量的全部通道
  * 事件统一通过 getWin()?.webContents.send(IPC_EVENT.xxx, payload) 推送
@@ -59,6 +60,7 @@ import * as settings from './core/settings'
 import * as accounts from './core/accounts'
 import * as versions from './core/versions'
 import * as loaders from './core/loaders'
+import { fabricLoaderChoices, changeFabricLoader } from './core/fabricLoader'
 import * as java from './core/java'
 import * as launch from './core/launch'
 import * as servers from './core/servers'
@@ -148,6 +150,7 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
   registerVoxlinkIpc(ipcMain)
   registerTerracottaIpc(ipcMain)
   registerFrpIpc(ipcMain)
+  registerCommunitySearchIpc(ipcMain, community)
   installFrpEventBridge(getWin)
   const send = (channel: string, payload: unknown): void => {
     const window = getWin()
@@ -546,6 +549,8 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
   ipcMain.handle(IPC.versionsIsolationPlan, (_e, versionId: string, folder?: string) =>
     scopedVersion(versionId, folder, () => instances.isolationMigrationPlan(String(versionId ?? '')))
   )
+  ipcMain.handle(IPC.fabricLoaderChoices, (_e, target) => fabricLoaderChoices(target))
+  ipcMain.handle(IPC.fabricLoaderChange, (_e, target, version) => changeFabricLoader(target, version))
   ipcMain.handle(IPC.loadersList, (_e, loader: LoaderName, mcVersion: string) =>
     loaders.listLoaderVersions(loader, mcVersion)
   )
@@ -929,6 +934,7 @@ export function registerIpc(getWin: () => BrowserWindow | null): void {
   ipcMain.handle('mods:setEnabled', (_e,id:string,folder:string,names:string[],enabled:boolean)=>modManagement.setModsEnabled(id,folder,names,enabled===true))
   ipcMain.handle('mods:setLocked', (_e,id:string,folder:string,names:string[],locked:boolean)=>modManagement.lockMods(id,folder,names,locked===true))
   ipcMain.handle('mods:versionChoices', (_e,id:string,folder:string,name:string)=>modManagement.modVersionChoices(id,folder,name))
+  ipcMain.handle('mods:fabricApiChoices', (_e,id:string,folder:string)=>modManagement.fabricApiVersionChoices(id,folder))
   ipcMain.handle('mods:versionPlan', (_e,id:string,fileId:string)=>modManagement.planModVersionChange(id,fileId))
   ipcMain.handle('mods:versionApply', (_e,id:string,confirmed:boolean)=>modManagement.applyModVersionChange(id,confirmed===true))
   ipcMain.handle('mods:versionDiscard', (_e,id:string)=>modManagement.discardModVersionPlan(id))

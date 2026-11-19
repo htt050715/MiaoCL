@@ -4,6 +4,10 @@
  * 表可持续扩充；slug 以 Modrinth/CurseForge 通用小写连字符形式为准。
  */
 export const MOD_ZH: Record<string, string> = {
+  'avaritia': '无尽贪婪',
+  'avaritia-1-10': '无尽贪婪 1.1x',
+  're-avaritia': '无尽贪婪：重生',
+  'avaritia-endless': '无尽贪婪·伪',
   // ---- 优化/性能 ----
   'sodium': '钠',
   'sodium-extra': '钠·扩展',
@@ -491,4 +495,36 @@ export function chineseModSearchTerms(keyword: string): string[] {
   const exact = entries.filter(([name]) => normalizeChineseModKeyword(name) === key)
   const candidates = exact.length ? exact : entries.filter(([name]) => normalizeChineseModKeyword(name).includes(key)).sort((a, b) => a[0].length - b[0].length)
   return [...new Set(candidates.flatMap(([, slugs]) => slugs))].slice(0, 5)
+}
+
+export interface ChineseModSearchMatch { slug: string; name: string; rank: number; source?: 'modrinth' | 'curseforge' }
+const verifiedModSources: Record<string, Array<'modrinth' | 'curseforge'>> = {
+  avaritia: ['curseforge'], 'avaritia-1-10': ['curseforge'],
+  're-avaritia': ['modrinth', 'curseforge'], 'avaritia-endless': ['curseforge']
+}
+export function chineseModDisplayName(slug: string, source: 'modrinth' | 'curseforge'): string | undefined {
+  return !verifiedModSources[slug] || verifiedModSources[slug].includes(source) ? MOD_ZH[slug] : undefined
+}
+export function chineseModSearchMatches(keyword: string): ChineseModSearchMatch[] {
+  if (!/\p{Script=Han}/u.test(keyword)) return []
+  const key = normalizeChineseModKeyword(keyword)
+  if (!key) return []
+  const found: ChineseModSearchMatch[] = []
+  for (const [name, slugs] of [...Object.entries(MOD_ZH_ALIASES), ...Object.entries(ZH_TO_SLUGS)]) {
+    const normalized = normalizeChineseModKeyword(name)
+    if (!normalized.includes(key)) continue
+    const rank = normalized === key ? 0 : normalized.startsWith(key) ? 1 : 2
+    for (const slug of slugs) for (const source of verifiedModSources[slug] ?? [undefined])
+      found.push({ slug, name, rank, ...(source ? { source } : {}) })
+  }
+  const unique = new Map<string, ChineseModSearchMatch>()
+  for (const match of found.sort((a, b) => a.rank - b.rank || a.name.length - b.name.length || a.slug.localeCompare(b.slug))) {
+    const identity = `${match.source ?? '*'}:${match.slug}`
+    if (!unique.has(identity)) unique.set(identity, match)
+  }
+  return [...unique.values()]
+}
+export function chineseModFamilyTerms(keyword: string): string[] {
+  const key = normalizeChineseModKeyword(keyword)
+  return key.length >= 2 && normalizeChineseModKeyword('无尽贪婪').includes(key) ? ['avaritia'] : []
 }
